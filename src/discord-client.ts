@@ -26,7 +26,6 @@ import { executeSkillCommand, handleResponseFeedback, processPrompt } from './me
 import { extractDiscordSendFromPrompt, splitMessage } from './message-utils.js';
 import { handleScheduleCommand, handleScheduleMessage } from './schedule-handler.js';
 import type { Scheduler } from './scheduler.js';
-import { deleteSession, getSession, setSession } from './sessions.js';
 import { formatSettings, loadSettings } from './settings.js';
 import { formatSkillList, loadSkills, type Skill } from './skills.js';
 
@@ -42,7 +41,7 @@ function formatChannelStatus(
   agentRunner: AgentRunner
 ): string {
   const count = processingChannels.get(channelId) ?? 0;
-  const sessionId = getSession(channelId);
+  const sessionId = agentRunner.getSessionId?.(channelId);
 
   const lines = ['📊 **現在の実行状態**'];
   lines.push(`- チャンネル: <#${channelId}>`);
@@ -99,7 +98,8 @@ async function handlePersonalize(
 ): Promise<void> {
   const target = interaction.options.getString('target') || 'both';
 
-  deleteSession(channelId);
+  agentRunner.deleteSession?.(channelId);
+  agentRunner.destroy?.(channelId);
   await interaction.deferReply();
 
   const targetDesc =
@@ -138,12 +138,10 @@ ${
 - Discordで会話しているので、返答は簡潔にしてください`;
 
   try {
-    const { result, sessionId: newSessionId } = await agentRunner.run(prompt, {
-      sessionId: undefined,
+    const { result } = await agentRunner.run(prompt, {
       channelId,
     });
 
-    setSession(channelId, newSessionId);
     const chunks = splitMessage(result, DISCORD_SAFE_LENGTH);
     await interaction.editReply(chunks[0] || '✅');
     if (chunks.length > 1 && isSendableChannel(interaction.channel)) {
@@ -402,7 +400,8 @@ async function handleSlashCommand(
   const { agentRunner, scheduler, skills, reloadSkills } = deps;
 
   if (interaction.commandName === 'new') {
-    deleteSession(channelId);
+    agentRunner.deleteSession?.(channelId);
+    agentRunner.destroy?.(channelId);
     await interaction.reply('🆕 新しいセッションを開始しました');
     return;
   }
@@ -745,13 +744,9 @@ export function registerSchedulerHandlers(
     };
 
     try {
-      const sessionId = getSession(channelId);
-      const { result, sessionId: newSessionId } = await agentRunner.run(remainingPrompt, {
-        sessionId,
+      const { result } = await agentRunner.run(remainingPrompt, {
         channelId,
       });
-
-      setSession(channelId, newSessionId);
 
       // AI応答内の !discord コマンドを処理
       const feedbackResults = await handleDiscordCommandsInResponse(
@@ -767,12 +762,9 @@ export function registerSchedulerHandlers(
       if (feedbackResults.length > 0) {
         const feedbackPrompt = `あなたが実行したコマンドの結果が返ってきました。この情報を踏まえて、元の会話の文脈に沿ってユーザーに返答してください。\n\n${feedbackResults.join('\n\n')}`;
         schedulerLogger.info(`Re-injecting ${feedbackResults.length} feedback result(s) to agent`);
-        const feedbackSession = getSession(channelId);
         const feedbackRun = await agentRunner.run(feedbackPrompt, {
-          sessionId: feedbackSession,
           channelId,
         });
-        setSession(channelId, feedbackRun.sessionId);
         await handleDiscordCommandsInResponse(
           feedbackRun.result,
           client,

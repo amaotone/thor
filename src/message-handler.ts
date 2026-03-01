@@ -9,7 +9,6 @@ import { extractFilePaths, stripFilePaths } from './file-utils.js';
 import { createLogger } from './logger.js';
 import { splitMessage, stripCommandsFromDisplay } from './message-utils.js';
 import type { Scheduler } from './scheduler.js';
-import { getSession, setSession } from './sessions.js';
 import { handleSettingsFromResponse } from './system-commands.js';
 
 const logger = createLogger('thor');
@@ -124,12 +123,9 @@ export async function processPrompt(
       logger.warn('Failed to react:', e.message);
     });
 
-    const sessionId = getSession(channelId);
-
     replyMessage = await message.reply('🤔 考え中.');
 
     let result: string;
-    let newSessionId: string;
 
     const thinking = startThinkingAnimation(replyMessage);
     let lastUpdateTime = 0;
@@ -156,16 +152,14 @@ export async function processPrompt(
             }
           },
         },
-        { sessionId, channelId }
+        { channelId }
       );
       result = streamResult.result;
-      newSessionId = streamResult.sessionId;
     } finally {
       thinking.stop();
     }
 
-    setSession(channelId, newSessionId);
-    logger.info(`Response length: ${result.length}, session: ${newSessionId.slice(0, 8)}...`);
+    logger.info(`Response length: ${result.length}`);
 
     await sendResultToDiscord(
       result,
@@ -204,16 +198,14 @@ export async function processPrompt(
     if (!errorMsg.includes('Circuit breaker')) {
       try {
         logger.info('Sending error follow-up to agent');
-        const sessionId = getSession(channelId);
-        if (sessionId) {
+        const hasSession = agentRunner.getSessionId?.(channelId);
+        if (hasSession) {
           const followUpPrompt =
             '先ほどの処理がエラー（タイムアウト等）で中断されました。途中まで行った作業内容と現在の状況を簡潔に報告してください。';
           const followUpResult = await agentRunner.run(followUpPrompt, {
-            sessionId,
             channelId,
           });
           if (followUpResult.result) {
-            setSession(channelId, followUpResult.sessionId);
             const followUpText = followUpResult.result.slice(0, DISCORD_SAFE_LENGTH);
             if (isSendableChannel(message.channel)) {
               await message.channel.send(`📋 **エラー前の作業報告:**\n${followUpText}`);
@@ -288,13 +280,10 @@ export async function executeSkillCommand(
 
   try {
     const prompt = `スキル「${skillName}」を実行してください。${args ? `引数: ${args}` : ''}`;
-    const sessionId = getSession(channelId);
-    const { result, sessionId: newSessionId } = await agentRunner.run(prompt, {
-      sessionId,
+    const { result } = await agentRunner.run(prompt, {
       channelId,
     });
 
-    setSession(channelId, newSessionId);
     const chunks = splitMessage(result, DISCORD_SAFE_LENGTH);
     await interaction.editReply(chunks[0] || '✅');
     for (let i = 1; i < chunks.length; i++) {

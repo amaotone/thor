@@ -45,6 +45,10 @@ export interface AgentRunner {
   shutdown?(): void;
   /** ランナープールの状態を取得 */
   getStatus?(): RunnerStatus;
+  /** 指定チャンネルのセッションIDを取得 */
+  getSessionId?(channelId: string): string | undefined;
+  /** 指定チャンネルのセッションをクリア */
+  deleteSession?(channelId: string): void;
 }
 
 /**

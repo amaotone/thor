@@ -292,4 +292,42 @@ describe('RunnerManager', () => {
     expect(manager.getStatus().poolSize).toBe(0);
     expect(manager.destroy('ch1')).toBe(false);
   });
+
+  // Session management tests
+  it('should track sessionId from run result', async () => {
+    manager = new RunnerManager({ workdir: '/test' }, { maxProcesses: 3 });
+
+    await manager.run('hello', { channelId: 'ch1' });
+
+    // RunResult の sessionId が内部で保持される
+    expect(manager.getSessionId('ch1')).toBe('session-123');
+  });
+
+  it('should return undefined sessionId for unknown channel', () => {
+    manager = new RunnerManager({ workdir: '/test' }, { maxProcesses: 3 });
+
+    expect(manager.getSessionId('unknown')).toBeUndefined();
+  });
+
+  it('should clear sessionId when channel is destroyed', async () => {
+    manager = new RunnerManager({ workdir: '/test' }, { maxProcesses: 3 });
+
+    await manager.run('hello', { channelId: 'ch1' });
+    expect(manager.getSessionId('ch1')).toBe('session-123');
+
+    manager.destroy('ch1');
+    expect(manager.getSessionId('ch1')).toBeUndefined();
+  });
+
+  it('should not require sessionId in RunOptions', async () => {
+    manager = new RunnerManager({ workdir: '/test' }, { maxProcesses: 3 });
+
+    // sessionId を渡さなくても内部で自動管理される
+    const result = await manager.run('msg1', { channelId: 'ch1' });
+    expect(result.sessionId).toBe('session-123');
+
+    // 2回目は内部で保持されたsessionIdを自動的に使う
+    const result2 = await manager.run('msg2', { channelId: 'ch1' });
+    expect(result2.sessionId).toBe('session-123');
+  });
 });

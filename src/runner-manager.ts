@@ -1,4 +1,10 @@
-import type { AgentRunner, RunOptions, RunResult, StreamCallbacks } from './agent-runner.js';
+import type {
+  AgentRunner,
+  RunnerStatus,
+  RunOptions,
+  RunResult,
+  StreamCallbacks,
+} from './agent-runner.js';
 import type { AgentConfig } from './config.js';
 import { createLogger } from './logger.js';
 import { PersistentRunner } from './persistent-runner.js';
@@ -11,6 +17,7 @@ const logger = createLogger('runner-manager');
 interface PoolEntry {
   runner: PersistentRunner;
   lastUsed: number;
+  sessionId?: string;
 }
 
 /**
@@ -51,13 +58,13 @@ export class RunnerManager implements AgentRunner {
   }
 
   /**
-   * チャンネルに対応する PersistentRunner を取得（なければ作成）
+   * チャンネルに対応する PoolEntry を取得（なければ作成）
    */
-  private getOrCreateRunner(channelId: string): PersistentRunner {
+  private getOrCreateEntry(channelId: string): PoolEntry {
     const entry = this.pool.get(channelId);
     if (entry) {
       entry.lastUsed = Date.now();
-      return entry.runner;
+      return entry;
     }
 
     // 上限チェック → LRU eviction
@@ -67,13 +74,14 @@ export class RunnerManager implements AgentRunner {
 
     // 新しい PersistentRunner を作成
     const runner = new PersistentRunner(this.agentConfig);
-    this.pool.set(channelId, { runner, lastUsed: Date.now() });
+    const newEntry: PoolEntry = { runner, lastUsed: Date.now() };
+    this.pool.set(channelId, newEntry);
 
     logger.debug(
       `Created runner for channel ${channelId} (pool: ${this.pool.size}/${this.maxProcesses})`
     );
 
-    return runner;
+    return newEntry;
   }
 
   /**
@@ -132,12 +140,15 @@ export class RunnerManager implements AgentRunner {
    */
   async run(prompt: string, options?: RunOptions): Promise<RunResult> {
     const channelId = options?.channelId ?? RunnerManager.DEFAULT_CHANNEL;
-    const runner = this.getOrCreateRunner(channelId);
-    // セッションIDが渡されていればランナーに設定（プロセス再起動時の復元用）
-    if (options?.sessionId) {
-      runner.setSessionId(options.sessionId);
+    const entry = this.getOrCreateEntry(channelId);
+    // 外部からsessionIdが渡された場合は優先、なければ内部保持のIDを使用
+    const sessionId = options?.sessionId ?? entry.sessionId;
+    if (sessionId) {
+      entry.runner.setSessionId(sessionId);
     }
-    return runner.run(prompt, options);
+    const result = await entry.runner.run(prompt, options);
+    entry.sessionId = result.sessionId;
+    return result;
   }
 
   /**
@@ -149,12 +160,14 @@ export class RunnerManager implements AgentRunner {
     options?: RunOptions
   ): Promise<RunResult> {
     const channelId = options?.channelId ?? RunnerManager.DEFAULT_CHANNEL;
-    const runner = this.getOrCreateRunner(channelId);
-    // セッションIDが渡されていればランナーに設定（プロセス再起動時の復元用）
-    if (options?.sessionId) {
-      runner.setSessionId(options.sessionId);
+    const entry = this.getOrCreateEntry(channelId);
+    const sessionId = options?.sessionId ?? entry.sessionId;
+    if (sessionId) {
+      entry.runner.setSessionId(sessionId);
     }
-    return runner.runStream(prompt, callbacks, options);
+    const result = await entry.runner.runStream(prompt, callbacks, options);
+    entry.sessionId = result.sessionId;
+    return result;
   }
 
   /**
@@ -225,15 +238,28 @@ export class RunnerManager implements AgentRunner {
   }
 
   /**
+   * 指定チャンネルのセッションIDを取得
+   */
+  getSessionId(channelId: string): string | undefined {
+    return this.pool.get(channelId)?.sessionId;
+  }
+
+  /**
+   * 指定チャンネルのセッションをクリア（新規セッション開始用）
+   */
+  deleteSession(channelId: string): void {
+    const entry = this.pool.get(channelId);
+    if (entry) {
+      entry.sessionId = undefined;
+    }
+  }
+
+  /**
    * プール状態の取得（デバッグ・ステータス表示用）
    */
-  getStatus(): {
-    poolSize: number;
-    maxProcesses: number;
-    channels: Array<{ channelId: string; idleSeconds: number; alive: boolean }>;
-  } {
+  getStatus(): RunnerStatus {
     const now = Date.now();
-    const channels: Array<{ channelId: string; idleSeconds: number; alive: boolean }> = [];
+    const channels: RunnerStatus['channels'] = [];
 
     for (const [channelId, entry] of this.pool.entries()) {
       channels.push({
