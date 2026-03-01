@@ -1,3 +1,5 @@
+<div align="center"><img width="240" height="240" alt="thor" src="https://github.com/user-attachments/assets/88576d65-dc44-4ab6-b76b-a6cadf4187fb" /></div>
+
 # thor
 
 thor は Discord で使う個人向け AI アシスタントです。  
