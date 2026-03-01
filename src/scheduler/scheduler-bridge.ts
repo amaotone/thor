@@ -4,11 +4,8 @@ import { handleDiscordCommand } from '../discord/discord-commands.js';
 import { isSendableChannel } from '../discord/discord-types.js';
 import { loadBeadsContext } from '../lib/beads.js';
 import type { Config } from '../lib/config.js';
-import {
-  COMMAND_LOG_TRUNCATE_LENGTH,
-  DISCORD_SAFE_LENGTH,
-  ERROR_TRUNCATE_LENGTH,
-} from '../lib/constants.js';
+import { COMMAND_LOG_TRUNCATE_LENGTH, DISCORD_SAFE_LENGTH } from '../lib/constants.js';
+import { formatErrorDetail, toErrorMessage } from '../lib/error-utils.js';
 import { executeCommandsWithFeedback } from '../lib/feedback-loop.js';
 import { extractFilePaths, stripFilePaths } from '../lib/file-utils.js';
 import { createLogger } from '../lib/logger.js';
@@ -108,18 +105,7 @@ export function registerSchedulerHandlers(
       if (error instanceof Error && error.message === 'Request cancelled by user') {
         await thinkingMsg.edit('🛑 タスクを停止しました');
       } else {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        let errorDetail: string;
-        if (errorMsg.includes('timed out')) {
-          errorDetail = '⏱️ タイムアウトしました';
-        } else if (errorMsg.includes('Process exited unexpectedly')) {
-          errorDetail = '💥 AIプロセスが予期せず終了しました';
-        } else if (errorMsg.includes('Circuit breaker')) {
-          errorDetail = '🔌 AIプロセスが一時停止中です';
-        } else {
-          errorDetail = `❌ エラー: ${errorMsg.slice(0, ERROR_TRUNCATE_LENGTH)}`;
-        }
-        await thinkingMsg.edit(errorDetail);
+        await thinkingMsg.edit(formatErrorDetail(toErrorMessage(error)));
       }
       throw error;
     }

@@ -85,7 +85,8 @@ export async function loadBeadsContext(workdir: string): Promise<string> {
     cachedContext = `[プロジェクト状態]\n${lines.join('\n')}`;
     cacheTimestamp = now;
     return cachedContext;
-  } catch {
+  } catch (err) {
+    logger.debug('Failed to load beads context:', err instanceof Error ? err.message : err);
     cachedContext = '';
     cacheTimestamp = now;
     return '';
