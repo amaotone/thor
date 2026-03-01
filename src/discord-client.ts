@@ -23,7 +23,8 @@ import {
 } from './file-utils.js';
 import { createLogger } from './logger.js';
 import { executeSkillCommand, handleResponseFeedback, processPrompt } from './message-handler.js';
-import { extractDiscordSendFromPrompt, splitMessage } from './message-utils.js';
+import { splitMessage } from './message-utils.js';
+import { parseAgentResponse } from './response-parser.js';
 import { handleScheduleCommand, handleScheduleMessage } from './schedule-handler.js';
 import type { Scheduler } from './scheduler.js';
 import { formatSettings, loadSettings } from './settings.js';
@@ -718,17 +719,17 @@ export function registerSchedulerHandlers(
     }
 
     // プロンプト内の !discord send コマンドを先に直接実行
-    const promptCommands = extractDiscordSendFromPrompt(prompt);
-    for (const cmd of promptCommands.commands) {
+    const parsed = parseAgentResponse(prompt);
+    for (const cmd of parsed.commands) {
       schedulerLogger.info(`Executing discord command from prompt: ${cmd.slice(0, 80)}...`);
       await handleDiscordCommand(cmd, client, undefined, channelId);
     }
 
     // !discord send 以外のテキストが残っていればAIに渡す
-    let remainingPrompt = promptCommands.remaining.trim();
+    let remainingPrompt = parsed.displayText;
     if (!remainingPrompt) {
       schedulerLogger.info('Prompt contained only discord commands, skipping agent');
-      return promptCommands.commands.map((c) => `✅ ${c.slice(0, 50)}`).join('\n');
+      return parsed.commands.map((c) => `✅ ${c.slice(0, 50)}`).join('\n');
     }
 
     // beads プロジェクト状態をプロンプトに注入

@@ -3,6 +3,7 @@ import { TIMEZONE } from './constants.js';
 import { isSendableChannel } from './discord-types.js';
 import { createLogger } from './logger.js';
 import { chunkDiscordMessage } from './message-utils.js';
+import { parseAgentResponse } from './response-parser.js';
 import { executeScheduleFromResponse } from './schedule-handler.js';
 import type { Scheduler } from './scheduler.js';
 
@@ -205,9 +206,8 @@ export async function handleDiscordCommand(
 }
 
 /**
- * AIの応答から !discord コマンドを検知して実行
- * コードブロック内のコマンドは無視する
- * !discord send は複数行メッセージに対応（次の !discord / !schedule コマンド行まで吸収）
+ * AIの応答から !discord / !schedule コマンドを検知して実行
+ * parseAgentResponse で統一的にコマンドを抽出し、各コマンドを実行する。
  * feedback: true のコマンド結果はDiscordに送信せずフィードバック配列に収集して返す
  */
 export async function handleDiscordCommandsInResponse(
@@ -218,111 +218,14 @@ export async function handleDiscordCommandsInResponse(
   sourceMessage?: Message,
   fallbackChannelId?: string
 ): Promise<string[]> {
-  const lines = text.split('\n');
-  let inCodeBlock = false;
-  let i = 0;
+  const { commands } = parseAgentResponse(text);
   const feedbackResults: string[] = [];
 
-  while (i < lines.length) {
-    const line = lines[i];
-
-    if (line.trim().startsWith('```')) {
-      inCodeBlock = !inCodeBlock;
-      i++;
-      continue;
-    }
-
-    if (inCodeBlock) {
-      i++;
-      continue;
-    }
-
-    const trimmed = line.trim();
-
-    // !discord send の複数行対応
-    const sendMatch = trimmed.match(/^!discord\s+send\s+<#(\d+)>\s*(.*)/);
-    if (sendMatch) {
-      const firstLineContent = sendMatch[2] ?? '';
-
-      if (firstLineContent.trim() === '') {
-        const bodyLines: string[] = [];
-        let inBodyCodeBlock = false;
-        i++;
-        while (i < lines.length) {
-          const bodyLine = lines[i];
-          if (bodyLine.trim().startsWith('```')) {
-            inBodyCodeBlock = !inBodyCodeBlock;
-          }
-          if (
-            !inBodyCodeBlock &&
-            (bodyLine.trim().startsWith('!discord ') || bodyLine.trim().startsWith('!schedule'))
-          ) {
-            break;
-          }
-          bodyLines.push(bodyLine);
-          i++;
-        }
-        const fullMessage = bodyLines.join('\n').trim();
-        if (fullMessage) {
-          const commandText = `!discord send <#${sendMatch[1]}> ${fullMessage}`;
-          logger.debug(`Processing discord command from response: ${commandText.slice(0, 50)}...`);
-          const result = await handleDiscordCommand(
-            commandText,
-            client,
-            sourceMessage,
-            fallbackChannelId
-          );
-          if (result.handled && result.response) {
-            if (result.feedback) {
-              feedbackResults.push(result.response);
-            } else if (sourceMessage && isSendableChannel(sourceMessage.channel)) {
-              await sourceMessage.channel.send(result.response);
-            }
-          }
-        }
-        continue;
-      } else {
-        const bodyLines: string[] = [firstLineContent];
-        let inBodyCodeBlock2 = false;
-        i++;
-        while (i < lines.length) {
-          const bodyLine = lines[i];
-          if (bodyLine.trim().startsWith('```')) {
-            inBodyCodeBlock2 = !inBodyCodeBlock2;
-          }
-          if (
-            !inBodyCodeBlock2 &&
-            (bodyLine.trim().startsWith('!discord ') || bodyLine.trim().startsWith('!schedule'))
-          ) {
-            break;
-          }
-          bodyLines.push(bodyLine);
-          i++;
-        }
-        const fullMessage = bodyLines.join('\n').trimEnd();
-        const commandText = `!discord send <#${sendMatch[1]}> ${fullMessage}`;
-        logger.debug(`Processing discord command from response: ${commandText.slice(0, 50)}...`);
-        const result = await handleDiscordCommand(
-          commandText,
-          client,
-          sourceMessage,
-          fallbackChannelId
-        );
-        if (result.handled && result.response) {
-          if (result.feedback) {
-            feedbackResults.push(result.response);
-          } else if (sourceMessage && isSendableChannel(sourceMessage.channel)) {
-            await sourceMessage.channel.send(result.response);
-          }
-        }
-        continue;
-      }
-    }
-
-    // その他の !discord コマンド（channels, history, delete）
-    if (trimmed.startsWith('!discord ')) {
-      logger.debug(`Processing discord command from response: ${trimmed.slice(0, 50)}...`);
-      const result = await handleDiscordCommand(trimmed, client, sourceMessage, fallbackChannelId);
+  for (const cmd of commands) {
+    // !discord コマンド
+    if (cmd.startsWith('!discord ')) {
+      logger.debug(`Processing discord command from response: ${cmd.slice(0, 50)}...`);
+      const result = await handleDiscordCommand(cmd, client, sourceMessage, fallbackChannelId);
       if (result.handled && result.response) {
         if (result.feedback) {
           feedbackResults.push(result.response);
@@ -330,15 +233,16 @@ export async function handleDiscordCommandsInResponse(
           await sourceMessage.channel.send(result.response);
         }
       }
+      continue;
     }
 
-    // !schedule コマンド（引数なしでもlist表示、sourceMessage必須）
-    if (sourceMessage && (trimmed === '!schedule' || trimmed.startsWith('!schedule '))) {
-      logger.debug(`Processing schedule command from response: ${trimmed.slice(0, 50)}...`);
-      await executeScheduleFromResponse(trimmed, sourceMessage, scheduler, schedulerConfig);
+    // !schedule コマンド
+    if (cmd === '!schedule' || cmd.startsWith('!schedule ')) {
+      if (sourceMessage) {
+        logger.debug(`Processing schedule command from response: ${cmd.slice(0, 50)}...`);
+        await executeScheduleFromResponse(cmd, sourceMessage, scheduler, schedulerConfig);
+      }
     }
-
-    i++;
   }
 
   return feedbackResults;

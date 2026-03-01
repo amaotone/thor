@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { parseAgentResponse } from '../src/response-parser.js';
 
 /**
  * annotateChannelMentions のテスト用に関数を再実装
@@ -8,73 +9,9 @@ function annotateChannelMentions(text: string): string {
   return text.replace(/<#(\d+)>/g, (match, id) => `${match} [チャンネルID: ${id}]`);
 }
 
-/**
- * 表示用テキストからコマンド行を除去する（コードブロック内は残す）
- */
+/** parseAgentResponse のラッパー: displayText を返す */
 function stripCommandsFromDisplay(text: string): string {
-  const lines = text.split('\n');
-  const result: string[] = [];
-  let inCodeBlock = false;
-  let i = 0;
-
-  while (i < lines.length) {
-    const line = lines[i];
-
-    if (line.trim().startsWith('```')) {
-      inCodeBlock = !inCodeBlock;
-      result.push(line);
-      i++;
-      continue;
-    }
-
-    if (inCodeBlock) {
-      result.push(line);
-      i++;
-      continue;
-    }
-
-    const trimmed = line.trim();
-
-    if (trimmed.startsWith('SYSTEM_COMMAND:')) {
-      i++;
-      continue;
-    }
-
-    const sendMatch = trimmed.match(/^!discord\s+send\s+<#\d+>\s*(.*)/);
-    if (sendMatch) {
-      i++;
-      let inBodyCodeBlock = false;
-      while (i < lines.length) {
-        const bodyLine = lines[i];
-        if (bodyLine.trim().startsWith('```')) {
-          inBodyCodeBlock = !inBodyCodeBlock;
-        }
-        if (
-          !inBodyCodeBlock &&
-          (bodyLine.trim().startsWith('!discord ') || bodyLine.trim().startsWith('!schedule'))
-        ) {
-          break;
-        }
-        i++;
-      }
-      continue;
-    }
-
-    if (trimmed.startsWith('!discord ')) {
-      i++;
-      continue;
-    }
-
-    if (trimmed === '!schedule' || trimmed.startsWith('!schedule ')) {
-      i++;
-      continue;
-    }
-
-    result.push(line);
-    i++;
-  }
-
-  return result.join('\n').trim();
+  return parseAgentResponse(text).displayText;
 }
 
 /**
@@ -90,89 +27,9 @@ function isInCodeBlock(lines: string[], targetIndex: number): boolean {
   return inCodeBlock;
 }
 
-/**
- * !discord コマンドをテキストから抽出（コードブロック外のみ）
- * !discord send は複数行対応（次の !discord / !schedule コマンド行まで吸収）
- */
+/** parseAgentResponse のラッパー: !discord コマンドのみ抽出 */
 function extractDiscordCommands(text: string): string[] {
-  const lines = text.split('\n');
-  const commands: string[] = [];
-  let inCodeBlock = false;
-  let i = 0;
-
-  while (i < lines.length) {
-    const line = lines[i];
-
-    if (line.trim().startsWith('```')) {
-      inCodeBlock = !inCodeBlock;
-      i++;
-      continue;
-    }
-    if (inCodeBlock) {
-      i++;
-      continue;
-    }
-
-    const trimmed = line.trim();
-    const sendMatch = trimmed.match(/^!discord\s+send\s+<#(\d+)>\s*(.*)/);
-    if (sendMatch) {
-      const firstLineContent = sendMatch[2] ?? '';
-      if (firstLineContent.trim() === '') {
-        // 暗黙マルチライン: 次のコマンド行まで吸収
-        const bodyLines: string[] = [];
-        let inBodyCodeBlock = false;
-        i++;
-        while (i < lines.length) {
-          const bodyLine = lines[i];
-          if (bodyLine.trim().startsWith('```')) {
-            inBodyCodeBlock = !inBodyCodeBlock;
-          }
-          if (
-            !inBodyCodeBlock &&
-            (bodyLine.trim().startsWith('!discord ') || bodyLine.trim().startsWith('!schedule'))
-          ) {
-            break;
-          }
-          bodyLines.push(bodyLine);
-          i++;
-        }
-        const fullMessage = bodyLines.join('\n').trim();
-        if (fullMessage) {
-          commands.push(`!discord send <#${sendMatch[1]}> ${fullMessage}`);
-        }
-        continue;
-      } else {
-        // 1行目にテキストあり → 続く行も吸収
-        const bodyLines2: string[] = [firstLineContent];
-        let inBodyCodeBlock2 = false;
-        i++;
-        while (i < lines.length) {
-          const bodyLine = lines[i];
-          if (bodyLine.trim().startsWith('```')) {
-            inBodyCodeBlock2 = !inBodyCodeBlock2;
-          }
-          if (
-            !inBodyCodeBlock2 &&
-            (bodyLine.trim().startsWith('!discord ') || bodyLine.trim().startsWith('!schedule'))
-          ) {
-            break;
-          }
-          bodyLines2.push(bodyLine);
-          i++;
-        }
-        const fullMessage2 = bodyLines2.join('\n').trimEnd();
-        commands.push(`!discord send <#${sendMatch[1]}> ${fullMessage2}`);
-        continue;
-      }
-    }
-
-    if (trimmed.startsWith('!discord ')) {
-      commands.push(trimmed);
-    }
-    i++;
-  }
-
-  return commands;
+  return parseAgentResponse(text).commands.filter((c) => c.startsWith('!discord '));
 }
 
 /**
@@ -207,92 +64,13 @@ function chunkDiscordMessage(message: string, limit = 2000): string[] {
   return chunks;
 }
 
-/**
- * テキストから !discord send コマンドを抽出し、残りのテキストを返す
- * スケジューラプロンプトからコマンドを分離するために使用
- */
+/** parseAgentResponse のラッパー: コマンドと残テキストを返す */
 function extractDiscordSendFromPrompt(text: string): {
   commands: string[];
   remaining: string;
 } {
-  const lines = text.split('\n');
-  const commands: string[] = [];
-  const remainingLines: string[] = [];
-  let inCodeBlock = false;
-  let i = 0;
-
-  while (i < lines.length) {
-    const line = lines[i];
-
-    if (line.trim().startsWith('```')) {
-      inCodeBlock = !inCodeBlock;
-      remainingLines.push(line);
-      i++;
-      continue;
-    }
-
-    if (inCodeBlock) {
-      remainingLines.push(line);
-      i++;
-      continue;
-    }
-
-    const trimmed = line.trim();
-    const sendMatch = trimmed.match(/^!discord\s+send\s+<#(\d+)>\s*(.*)/);
-    if (sendMatch) {
-      const firstLineContent = sendMatch[2] ?? '';
-      if (firstLineContent.trim() === '') {
-        const bodyLines: string[] = [];
-        let inBodyCodeBlock = false;
-        i++;
-        while (i < lines.length) {
-          const bodyLine = lines[i];
-          if (bodyLine.trim().startsWith('```')) {
-            inBodyCodeBlock = !inBodyCodeBlock;
-          }
-          if (
-            !inBodyCodeBlock &&
-            (bodyLine.trim().startsWith('!discord ') || bodyLine.trim().startsWith('!schedule'))
-          ) {
-            break;
-          }
-          bodyLines.push(bodyLine);
-          i++;
-        }
-        const fullMessage = bodyLines.join('\n').trim();
-        if (fullMessage) {
-          commands.push(`!discord send <#${sendMatch[1]}> ${fullMessage}`);
-        }
-        continue;
-      } else {
-        const bodyLines2: string[] = [firstLineContent];
-        let inBodyCodeBlock2 = false;
-        i++;
-        while (i < lines.length) {
-          const bodyLine = lines[i];
-          if (bodyLine.trim().startsWith('```')) {
-            inBodyCodeBlock2 = !inBodyCodeBlock2;
-          }
-          if (
-            !inBodyCodeBlock2 &&
-            (bodyLine.trim().startsWith('!discord ') || bodyLine.trim().startsWith('!schedule'))
-          ) {
-            break;
-          }
-          bodyLines2.push(bodyLine);
-          i++;
-        }
-        const fullMessage2 = bodyLines2.join('\n').trimEnd();
-        commands.push(`!discord send <#${sendMatch[1]}> ${fullMessage2}`);
-        continue;
-      }
-    }
-
-    remainingLines.push(line);
-    i++;
-  }
-
-  return { commands, remaining: remainingLines.join('\n') };
+  const parsed = parseAgentResponse(text);
+  return { commands: parsed.commands, remaining: parsed.displayText };
 }
 
 describe('Discord Commands', () => {

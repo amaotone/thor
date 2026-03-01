@@ -7,7 +7,8 @@ import { handleDiscordCommandsInResponse } from './discord-commands.js';
 import { isSendableChannel } from './discord-types.js';
 import { extractFilePaths, stripFilePaths } from './file-utils.js';
 import { createLogger } from './logger.js';
-import { splitMessage, stripCommandsFromDisplay } from './message-utils.js';
+import { splitMessage } from './message-utils.js';
+import { parseAgentResponse } from './response-parser.js';
 import type { Scheduler } from './scheduler.js';
 import { handleSettingsFromResponse } from './system-commands.js';
 
@@ -69,7 +70,7 @@ async function sendResultToDiscord(
 ): Promise<void> {
   const filePaths = extractFilePaths(result);
   const displayText = filePaths.length > 0 ? stripFilePaths(result) : result;
-  const cleanText = stripCommandsFromDisplay(displayText);
+  const cleanText = parseAgentResponse(displayText).displayText;
 
   const chunks = splitMessage(cleanText, DISCORD_SAFE_LENGTH);
   await (message as { edit: (content: string) => Promise<unknown> }).edit(chunks[0] || '✅');
