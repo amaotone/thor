@@ -4,10 +4,10 @@ thorのアーキテクチャと設計思想について説明します。
 
 ## 概要
 
-thorは「AI CLI（Claude Code / Codex CLI / Gemini CLI）をチャットプラットフォームから使えるようにするラッパー」です。
+thorは「Claude Codeをチャットプラットフォームから使えるようにするラッパー」です。
 
 ```
-User → Chat (Discord/Slack) → thor → AI CLI → Workspace
+User → Discord → thor → AI CLI → Workspace
 ```
 
 ## アーキテクチャ
@@ -18,9 +18,9 @@ User → Chat (Discord/Slack) → thor → AI CLI → Workspace
 
 | レイヤー | 役割 | 実装 |
 |----------|------|------|
-| Chat | ユーザーインターフェース | Discord.js, Slack Bolt |
+| Chat | ユーザーインターフェース | Discord.js |
 | thor | AI CLIの統合・制御 | index.ts, agent-runner.ts |
-| AI CLI | 実際のAI処理 | Claude Code, Codex CLI, Gemini CLI |
+| AI CLI | 実際のAI処理 | Claude Code |
 | Workspace | ファイル・スキル | skills/, AGENTS.md |
 
 ## コンポーネント
@@ -29,7 +29,7 @@ User → Chat (Discord/Slack) → thor → AI CLI → Workspace
 
 メインのオーケストレーター。以下を統合：
 
-- Discord/Slackクライアントの初期化
+- Discordクライアントの初期化
 - メッセージ受信とルーティング
 - AI CLIの呼び出し
 - スケジューラーの管理
@@ -50,7 +50,7 @@ interface AgentRunner {
 
 thorがAI CLIに注入するシステムプロンプトを管理：
 
-- **チャットプラットフォーム情報** — Discord/Slack経由の会話であることを伝える短い固定テキスト
+- **チャットプラットフォーム情報** — Discord経由の会話であることを伝える短い固定テキスト
 - **THOR_COMMANDS.md** — `prompts/THOR_COMMANDS.md` からDiscord操作コマンド・スケジューラー等の仕様を読み込み
 
 AGENTS.md / CHARACTER.md / USER.md 等のワークスペース設定は、各AI CLIの自動読み込み機能に委譲：
@@ -58,8 +58,6 @@ AGENTS.md / CHARACTER.md / USER.md 等のワークスペース設定は、各AI 
 | CLI | 自動読み込みファイル | 注入方法 |
 |-----|---------------------|----------|
 | Claude Code | `CLAUDE.md` | `--append-system-prompt`（一回限り） |
-| Codex CLI | `AGENTS.md` | `<system-context>` タグで埋め込み |
-| Gemini CLI | `GEMINI.md` | CLI側で自動読み込み（thor側の注入なし） |
 
 ### AI CLIアダプター
 
@@ -67,8 +65,6 @@ AGENTS.md / CHARACTER.md / USER.md 等のワークスペース設定は、各AI 
 |----------|---------|------|
 | claude-code.ts | Claude Code | ストリーミング対応、セッション管理 |
 | persistent-runner.ts | Claude Code（常駐） | `--input-format=stream-json` で常駐プロセス化、キュー管理、サーキットブレーカー |
-| codex-cli.ts | Codex CLI | OpenAI製、0.98.0対応、cancel対応 |
-| gemini-cli.ts | Gemini CLI | Google製、セッション管理、ストリーミング対応 |
 
 ### スケジューラー（scheduler.ts）
 
@@ -124,7 +120,7 @@ skills/
 ```
 1. ユーザーがメッセージ送信
    ↓
-2. Discord/Slackクライアントが受信
+2. Discordクライアントが受信
    ↓
 3. 権限チェック（allowedUsers）
    ↓
@@ -166,20 +162,9 @@ skills/
 
 thorは**1人のユーザー**が使う前提で設計されています：
 
-- 認証は `DISCORD_ALLOWED_USER` / `SLACK_ALLOWED_USER` による単純なID照合
+- 認証は `DISCORD_ALLOWED_USER` による単純なID照合
 - セッションはチャンネル単位で管理
 - マルチテナント機能は意図的に省略
-
-### AI CLIの抽象化
-
-AI CLIの実装詳細を隠蔽し、交換可能に：
-
-```typescript
-// 設定でバックエンドを切り替え
-AGENT_BACKEND=claude-code  # or codex or gemini
-```
-
-将来的に新しいAI CLIが登場しても、アダプターを追加するだけで対応可能。
 
 ### コマンドの自律実行
 
@@ -206,13 +191,10 @@ AIが出力する特殊コマンドを検出して自動実行：
 ```
 src/
 ├── index.ts            # エントリーポイント、Discord統合
-├── slack.ts            # Slack統合
 ├── agent-runner.ts     # AI CLIインターフェース
 ├── base-runner.ts      # システムプロンプト生成、THOR_COMMANDS.md読み込み
 ├── claude-code.ts      # Claude Codeアダプター（per-request）
 ├── persistent-runner.ts # Claude Codeアダプター（常駐プロセス）
-├── codex-cli.ts        # Codex CLIアダプター
-├── gemini-cli.ts       # Gemini CLIアダプター
 ├── scheduler.ts        # スケジューラー
 ├── schedule-cli.ts     # スケジューラーCLI
 ├── skills.ts           # スキルローダー
@@ -236,14 +218,13 @@ prompts/
 │ thor container                         │
 ├─────────────────────────────────────────┤
 │ - Node.js 22                            │
-│ - Claude Code CLI / Codex CLI / Gemini  │
+│ - Claude Code CLI                       │
 │ - GitHub CLI (gh)                       │
 │ - (thor-max) uv + Python 3.12          │
 └─────────────────────────────────────────┘
          │
          ├── /workspace (bind mount)
          ├── /home/node/.claude (volume)
-         ├── /home/node/.codex (volume)
          └── /home/node/.config/gh (volume)
 ```
 
@@ -265,23 +246,11 @@ prompts/
 | `DISCORD_STREAMING` | ストリーミング出力（デフォルト: `true`） | - |
 | `DISCORD_SHOW_THINKING` | 思考過程を表示（デフォルト: `true`） | - |
 
-### Slack（非推奨）
-
-| 変数 | 説明 |
-|------|------|
-| `SLACK_BOT_TOKEN` | Slack Bot Token（xoxb-...） |
-| `SLACK_APP_TOKEN` | Slack App Token（xapp-...）※Socket Mode用 |
-| `SLACK_AUTO_REPLY_CHANNELS` | メンションなしで応答するチャンネルID（カンマ区切り） |
-| `SLACK_ALLOWED_USER` | Slack用の許可ユーザーID |
-| `SLACK_REPLY_IN_THREAD` | スレッド返信するか（デフォルト: `true`） |
-| `SLACK_STREAMING` | ストリーミング出力（デフォルト: `true`） |
-| `SLACK_SHOW_THINKING` | 思考過程を表示（デフォルト: `true`） |
-
 ### AIエージェント
 
 | 変数 | 説明 | デフォルト |
 |------|------|-----------|
-| `AGENT_BACKEND` | AI CLI（`claude-code` / `codex` / `gemini`） | `claude-code` |
+| `AGENT_BACKEND` | AI CLI（`claude-code`） | `claude-code` |
 | `AGENT_MODEL` | 使用するモデル | - |
 | `WORKSPACE_PATH` | 作業ディレクトリ（ホストのパス） | - |
 | `SKIP_PERMISSIONS` | デフォルトで許可スキップ | `false` |
@@ -304,7 +273,6 @@ prompts/
 | `${WORKSPACE_PATH}` | `/workspace` | 作業ディレクトリ |
 | `~/.gitconfig` | `/home/node/.gitconfig` | Git設定 |
 | `thor_claude-data` volume | `/home/node/.claude` | Claude認証 |
-| `thor_codex-data` volume | `/home/node/.codex` | Codex認証 |
 
 ## 拡張ポイント
 
@@ -315,8 +283,3 @@ prompts/
 3. `scheduler.registerSender()` で送信関数を登録
 4. `scheduler.registerAgentRunner()` でAI実行関数を登録
 
-### 新しいAI CLI追加
-
-1. `AgentRunner` インターフェースを実装
-2. `config.ts` にバックエンド設定を追加
-3. `index.ts` で初期化処理を追加

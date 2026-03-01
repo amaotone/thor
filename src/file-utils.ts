@@ -1,6 +1,6 @@
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const DOWNLOAD_DIR = path.join(
   process.env.THOR_DATA_DIR || path.join(os.homedir(), '.thor'),
@@ -46,8 +46,7 @@ export function extractFilePaths(text: string): string[] {
 
   // MEDIA:/path/to/file パターン
   const mediaPattern = /MEDIA:\s*([^\s\n]+)/g;
-  let match;
-  while ((match = mediaPattern.exec(text)) !== null) {
+  for (const match of text.matchAll(mediaPattern)) {
     const p = match[1].trim();
     if (fs.existsSync(p)) {
       paths.push(p);
@@ -57,7 +56,7 @@ export function extractFilePaths(text: string): string[] {
   // 絶対パスパターン（画像/音声/動画の拡張子を持つもの）
   const absPathPattern =
     /(?:^|\s)(\/[^\s]+\.(?:png|jpg|jpeg|gif|webp|mp3|mp4|wav|flac|pdf|zip))/gim;
-  while ((match = absPathPattern.exec(text)) !== null) {
+  for (const match of text.matchAll(absPathPattern)) {
     const p = match[1].trim();
     if (fs.existsSync(p) && !paths.includes(p)) {
       paths.push(p);

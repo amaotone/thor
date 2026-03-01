@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PersistentRunner } from '../src/persistent-runner.js';
 
 // Child process をモック
 vi.mock('child_process', () => {
-  const EventEmitter = require('events');
+  const EventEmitter = require('node:events');
 
   class MockProcess extends EventEmitter {
     stdin = {
@@ -29,11 +29,11 @@ vi.mock('child_process', () => {
       setTimeout(() => {
         mockProcess.stdout.emit(
           'data',
-          JSON.stringify({
+          `${JSON.stringify({
             type: 'system',
             subtype: 'init',
             session_id: 'test-session-123',
-          }) + '\n'
+          })}\n`
         );
       }, 10);
       return mockProcess;
@@ -70,7 +70,7 @@ describe('PersistentRunner', () => {
   });
 
   it('should start process on first request', async () => {
-    const { spawn, getMockProcess } = await import('child_process');
+    const { spawn, getMockProcess } = await import('node:child_process');
 
     // リクエストを送信（レスポンスは手動でシミュレート）
     const runPromise = runner.run('test prompt');
@@ -87,12 +87,12 @@ describe('PersistentRunner', () => {
     const mockProcess = getMockProcess();
     mockProcess.stdout.emit(
       'data',
-      JSON.stringify({
+      `${JSON.stringify({
         type: 'result',
         result: 'test response',
         session_id: 'test-session-123',
         is_error: false,
-      }) + '\n'
+      })}\n`
     );
 
     const result = await runPromise;
@@ -101,7 +101,7 @@ describe('PersistentRunner', () => {
   });
 
   it('should queue multiple requests', async () => {
-    const { getMockProcess } = await import('child_process');
+    const { getMockProcess } = await import('node:child_process');
 
     // 複数のリクエストを送信
     const promise1 = runner.run('prompt 1');
@@ -114,12 +114,12 @@ describe('PersistentRunner', () => {
     const mockProcess = getMockProcess();
     mockProcess.stdout.emit(
       'data',
-      JSON.stringify({
+      `${JSON.stringify({
         type: 'result',
         result: 'response 1',
         session_id: 'test-session-123',
         is_error: false,
-      }) + '\n'
+      })}\n`
     );
 
     const result1 = await promise1;
@@ -129,12 +129,12 @@ describe('PersistentRunner', () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     mockProcess.stdout.emit(
       'data',
-      JSON.stringify({
+      `${JSON.stringify({
         type: 'result',
         result: 'response 2',
         session_id: 'test-session-123',
         is_error: false,
-      }) + '\n'
+      })}\n`
     );
 
     const result2 = await promise2;
@@ -142,7 +142,7 @@ describe('PersistentRunner', () => {
   });
 
   it('should call streaming callbacks', async () => {
-    const { getMockProcess } = await import('child_process');
+    const { getMockProcess } = await import('node:child_process');
 
     const onText = vi.fn();
     const onComplete = vi.fn();
@@ -155,33 +155,33 @@ describe('PersistentRunner', () => {
     // テキストストリーム
     mockProcess.stdout.emit(
       'data',
-      JSON.stringify({
+      `${JSON.stringify({
         type: 'assistant',
         message: {
           content: [{ type: 'text', text: 'Hello ' }],
         },
-      }) + '\n'
+      })}\n`
     );
 
     mockProcess.stdout.emit(
       'data',
-      JSON.stringify({
+      `${JSON.stringify({
         type: 'assistant',
         message: {
           content: [{ type: 'text', text: 'World!' }],
         },
-      }) + '\n'
+      })}\n`
     );
 
     // 結果
     mockProcess.stdout.emit(
       'data',
-      JSON.stringify({
+      `${JSON.stringify({
         type: 'result',
         result: 'Hello World!',
         session_id: 'test-session-123',
         is_error: false,
-      }) + '\n'
+      })}\n`
     );
 
     await promise;
@@ -192,7 +192,7 @@ describe('PersistentRunner', () => {
   });
 
   it('should handle errors', async () => {
-    const { getMockProcess } = await import('child_process');
+    const { getMockProcess } = await import('node:child_process');
 
     const onError = vi.fn();
     const promise = runner.runStream('test prompt', { onError });
@@ -203,12 +203,12 @@ describe('PersistentRunner', () => {
     // エラーレスポンス
     mockProcess.stdout.emit(
       'data',
-      JSON.stringify({
+      `${JSON.stringify({
         type: 'result',
         result: 'Something went wrong',
         session_id: 'test-session-123',
         is_error: true,
-      }) + '\n'
+      })}\n`
     );
 
     await expect(promise).rejects.toThrow('Something went wrong');
@@ -250,7 +250,7 @@ describe('PersistentRunner', () => {
   });
 
   it('should process next queued request after cancel', async () => {
-    const { getMockProcess } = await import('child_process');
+    const { getMockProcess } = await import('node:child_process');
 
     const onError1 = vi.fn();
     const promise1 = runner.runStream('prompt 1', { onError: onError1 });
@@ -267,12 +267,12 @@ describe('PersistentRunner', () => {
     const mockProcess = getMockProcess();
     mockProcess.stdout.emit(
       'data',
-      JSON.stringify({
+      `${JSON.stringify({
         type: 'result',
         result: 'response 2',
         session_id: 'test-session-123',
         is_error: false,
-      }) + '\n'
+      })}\n`
     );
 
     const result2 = await promise2;
@@ -281,7 +281,7 @@ describe('PersistentRunner', () => {
 
   it('should preserve streamed text when result only has final text', async () => {
     // 問題2のテスト: ツール呼び出し前に出力されたテキストが result で消えないこと
-    const { getMockProcess } = await import('child_process');
+    const { getMockProcess } = await import('node:child_process');
 
     const onText = vi.fn();
     const onComplete = vi.fn();
@@ -294,34 +294,34 @@ describe('PersistentRunner', () => {
     // ツール呼び出し前にテキスト出力（!discord send を含む）
     mockProcess.stdout.emit(
       'data',
-      JSON.stringify({
+      `${JSON.stringify({
         type: 'assistant',
         message: {
           content: [{ type: 'text', text: '!discord send <#123> 作業開始します\n' }],
         },
-      }) + '\n'
+      })}\n`
     );
 
     // ツール呼び出し後にテキスト出力
     mockProcess.stdout.emit(
       'data',
-      JSON.stringify({
+      `${JSON.stringify({
         type: 'assistant',
         message: {
           content: [{ type: 'text', text: '調査が完了しました。' }],
         },
-      }) + '\n'
+      })}\n`
     );
 
     // result には最後のテキストだけが入る（Claude Code CLIの実際の挙動）
     mockProcess.stdout.emit(
       'data',
-      JSON.stringify({
+      `${JSON.stringify({
         type: 'result',
         result: '調査が完了しました。',
         session_id: 'test-session-123',
         is_error: false,
-      }) + '\n'
+      })}\n`
     );
 
     const result = await promise;
@@ -333,7 +333,7 @@ describe('PersistentRunner', () => {
 
   it('should not duplicate text when result matches streamed', async () => {
     // result と streamed が同一の場合は重複しないこと
-    const { getMockProcess } = await import('child_process');
+    const { getMockProcess } = await import('node:child_process');
 
     const promise = runner.run('test prompt');
 
@@ -343,23 +343,23 @@ describe('PersistentRunner', () => {
     // テキスト出力
     mockProcess.stdout.emit(
       'data',
-      JSON.stringify({
+      `${JSON.stringify({
         type: 'assistant',
         message: {
           content: [{ type: 'text', text: 'Hello World!' }],
         },
-      }) + '\n'
+      })}\n`
     );
 
     // result が streamed と同じ
     mockProcess.stdout.emit(
       'data',
-      JSON.stringify({
+      `${JSON.stringify({
         type: 'result',
         result: 'Hello World!',
         session_id: 'test-session-123',
         is_error: false,
-      }) + '\n'
+      })}\n`
     );
 
     const result = await promise;
@@ -368,7 +368,7 @@ describe('PersistentRunner', () => {
   });
 
   it('should report session ID', async () => {
-    const { getMockProcess } = await import('child_process');
+    const { getMockProcess } = await import('node:child_process');
 
     const promise = runner.run('test');
 
@@ -377,12 +377,12 @@ describe('PersistentRunner', () => {
 
     mockProcess.stdout.emit(
       'data',
-      JSON.stringify({
+      `${JSON.stringify({
         type: 'result',
         result: 'ok',
         session_id: 'my-session-id',
         is_error: false,
-      }) + '\n'
+      })}\n`
     );
 
     await promise;

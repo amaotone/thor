@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import {
   type AutocompleteInteraction,
   type ChatInputCommandInteraction,
@@ -9,7 +10,6 @@ import {
   Routes,
   SlashCommandBuilder,
 } from 'discord.js';
-import { join } from 'path';
 import { type AgentRunner, createAgentRunner, getBackendDisplayName } from './agent-runner.js';
 import { ClaudeCodeRunner } from './claude-code.js';
 import { loadConfig } from './config.js';
@@ -72,7 +72,7 @@ function splitMessage(text: string, maxLength: number, separator: string = '\n')
 
 /** スケジュール一覧をDiscord向けに分割する */
 function splitScheduleContent(content: string, maxLength: number): string[] {
-  const sep = '\n' + SCHEDULE_SEPARATOR + '\n';
+  const sep = `\n${SCHEDULE_SEPARATOR}\n`;
   const chunks = splitMessage(content, maxLength, sep);
   return chunks.map((c) => c.replaceAll(SCHEDULE_SEPARATOR, ''));
 }
@@ -88,7 +88,6 @@ function getTypeLabel(
       return `🔄 繰り返し: \`${options.expression}\`${channelInfo}`;
     case 'startup':
       return `🚀 起動時に実行${channelInfo}`;
-    case 'once':
     default:
       return `⏰ 実行時刻: ${new Date(options.runAt!).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}${channelInfo}`;
   }
@@ -711,7 +710,7 @@ async function main() {
               );
               const attachments =
                 m.attachments.size > 0
-                  ? '\n' + m.attachments.map((a) => `  📎 ${a.name} ${a.url}`).join('\n')
+                  ? `\n${m.attachments.map((a) => `  📎 ${a.name} ${a.url}`).join('\n')}`
                   : '';
               return `[${time}] (ID:${m.id}) ${m.author.tag}: ${content}${attachments}`;
             })
@@ -1588,7 +1587,7 @@ async function processPrompt(
         if (firstTextReceived) return;
         dotCount = (dotCount % 3) + 1;
         const dots = '.'.repeat(dotCount);
-        replyMessage!.edit(`🤔 考え中${dots}`).catch(() => {});
+        replyMessage?.edit(`🤔 考え中${dots}`).catch(() => {});
       }, 1000);
 
       let streamResult: { result: string; sessionId: string };
@@ -1605,8 +1604,8 @@ async function processPrompt(
               if (now - lastUpdateTime >= STREAM_UPDATE_INTERVAL_MS && !pendingUpdate) {
                 pendingUpdate = true;
                 lastUpdateTime = now;
-                replyMessage!
-                  .edit((fullText + ' ▌').slice(0, DISCORD_MAX_LENGTH))
+                replyMessage
+                  ?.edit(`${fullText} ▌`.slice(0, DISCORD_MAX_LENGTH))
                   .catch((err) => {
                     console.error('[thor] Failed to edit message:', err.message);
                   })
@@ -1629,7 +1628,7 @@ async function processPrompt(
       const thinkingInterval = setInterval(() => {
         dotCount = (dotCount % 3) + 1;
         const dots = '.'.repeat(dotCount);
-        replyMessage!.edit(`🤔 考え中${dots}`).catch(() => {});
+        replyMessage?.edit(`🤔 考え中${dots}`).catch(() => {});
       }, 1000);
 
       try {
@@ -1656,7 +1655,7 @@ async function processPrompt(
 
     // 2000文字超の応答は分割送信
     const chunks = splitMessage(cleanText, DISCORD_SAFE_LENGTH);
-    await replyMessage!.edit(chunks[0] || '✅');
+    await replyMessage?.edit(chunks[0] || '✅');
     if (chunks.length > 1 && 'send' in message.channel) {
       const channel = message.channel as unknown as {
         send: (content: string) => Promise<unknown>;
@@ -1916,7 +1915,7 @@ async function handleScheduleMessage(
     const targets = parts
       .map((p) => {
         const num = parseInt(p, 10);
-        if (!isNaN(num) && num > 0 && !p.startsWith('sch_')) {
+        if (!Number.isNaN(num) && num > 0 && !p.startsWith('sch_')) {
           if (num > schedules.length) {
             errors.push(`番号 ${num} は範囲外`);
             return null;
@@ -1967,7 +1966,7 @@ async function handleScheduleMessage(
 
     let targetId = idOrIndex;
     const indexNum = parseInt(idOrIndex, 10);
-    if (!isNaN(indexNum) && indexNum > 0 && !idOrIndex.startsWith('sch_')) {
+    if (!Number.isNaN(indexNum) && indexNum > 0 && !idOrIndex.startsWith('sch_')) {
       const schedules = scheduler.list(channelId);
       if (indexNum > schedules.length) {
         await message.reply(`❌ 番号 ${indexNum} は範囲外です（1〜${schedules.length}）`);
@@ -2077,7 +2076,7 @@ async function executeScheduleFromResponse(
     const targets = parts
       .map((p) => {
         const num = parseInt(p, 10);
-        if (!isNaN(num) && num > 0 && !p.startsWith('sch_')) {
+        if (!Number.isNaN(num) && num > 0 && !p.startsWith('sch_')) {
           if (num > schedules.length) return null;
           return { index: num, id: schedules[num - 1].id };
         }
@@ -2117,7 +2116,7 @@ async function executeScheduleFromResponse(
 
     let targetId = idOrIndex;
     const indexNum = parseInt(idOrIndex, 10);
-    if (!isNaN(indexNum) && indexNum > 0 && !idOrIndex.startsWith('sch_')) {
+    if (!Number.isNaN(indexNum) && indexNum > 0 && !idOrIndex.startsWith('sch_')) {
       const schedules = scheduler.list(channelId);
       if (indexNum > schedules.length) {
         if ('send' in channel) {

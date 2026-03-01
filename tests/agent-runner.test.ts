@@ -1,24 +1,13 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { createAgentRunner, getBackendDisplayName, mergeTexts } from '../src/agent-runner.js';
 
 describe('agent-runner', () => {
   describe('createAgentRunner', () => {
     it('should create ClaudeCodeRunner for claude-code backend', () => {
-      const runner = createAgentRunner('claude-code', {});
+      const runner = createAgentRunner({});
       expect(runner).toBeDefined();
       expect(runner.run).toBeDefined();
       expect(runner.runStream).toBeDefined();
-    });
-
-    it('should create CodexRunner for codex backend', () => {
-      const runner = createAgentRunner('codex', {});
-      expect(runner).toBeDefined();
-      expect(runner.run).toBeDefined();
-      expect(runner.runStream).toBeDefined();
-    });
-
-    it('should throw error for unknown backend', () => {
-      expect(() => createAgentRunner('unknown' as any, {})).toThrow('Unknown agent backend');
     });
   });
 
@@ -67,12 +56,8 @@ describe('agent-runner', () => {
   });
 
   describe('getBackendDisplayName', () => {
-    it('should return "Claude Code" for claude-code', () => {
-      expect(getBackendDisplayName('claude-code')).toBe('Claude Code');
-    });
-
-    it('should return "Codex" for codex', () => {
-      expect(getBackendDisplayName('codex')).toBe('Codex');
+    it('should return "Claude Code"', () => {
+      expect(getBackendDisplayName()).toBe('Claude Code');
     });
   });
 });

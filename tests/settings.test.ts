@@ -1,13 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  clearSettingsCache,
+  formatSettings,
   initSettings,
   loadSettings,
   saveSettings,
-  formatSettings,
-  clearSettingsCache,
 } from '../src/settings.js';
 
 describe('settings', () => {
@@ -32,7 +32,7 @@ describe('settings', () => {
 
     it('should load settings from file', () => {
       const filePath = join(tempDir, 'settings.json');
-      const { writeFileSync } = require('fs');
+      const { writeFileSync } = require('node:fs');
       writeFileSync(filePath, JSON.stringify({ autoRestart: false }));
 
       const settings = loadSettings();
@@ -41,7 +41,7 @@ describe('settings', () => {
 
     it('should return default on invalid JSON', () => {
       const filePath = join(tempDir, 'settings.json');
-      const { writeFileSync } = require('fs');
+      const { writeFileSync } = require('node:fs');
       writeFileSync(filePath, 'not json');
 
       const settings = loadSettings();

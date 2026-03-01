@@ -39,10 +39,11 @@ RUN mkdir -p /home/bun/.config/gh && chown -R bun:bun /home/bun/.config
 # Switch to bun user for Claude Code CLI installation
 USER bun
 
-# Install Claude Code CLI as bun user
-RUN curl -fsSL https://claude.ai/install.sh | bash
+# Install Claude Code CLI and Beads CLI as bun user
+RUN curl -fsSL https://claude.ai/install.sh | bash \
+    && curl -sSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash
 
-# Add Claude to PATH
+# Add Claude and Beads to PATH
 ENV PATH="/home/bun/.local/bin:${PATH}"
 
 # Default command

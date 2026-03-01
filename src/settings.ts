@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 export interface Settings {
   autoRestart: boolean;
@@ -60,7 +60,7 @@ export function saveSettings(settings: Partial<Settings>): Settings {
 
   const path = getSettingsPath();
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(merged, null, 2) + '\n', 'utf-8');
+  writeFileSync(path, `${JSON.stringify(merged, null, 2)}\n`, 'utf-8');
 
   cachedSettings = merged;
   console.log(`[thor] Settings saved: ${JSON.stringify(merged)}`);

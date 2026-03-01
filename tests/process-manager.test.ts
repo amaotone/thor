@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { spawn } from 'child_process';
+import { spawn } from 'node:child_process';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { processManager } from '../src/process-manager.js';
 
 describe('processManager', () => {

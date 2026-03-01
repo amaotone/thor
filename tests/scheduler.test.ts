@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Scheduler, parseScheduleInput, formatScheduleList } from '../src/scheduler.js';
-import { mkdtempSync, rmSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { formatScheduleList, parseScheduleInput, Scheduler } from '../src/scheduler.js';
 
 describe('parseScheduleInput', () => {
   beforeEach(() => {
@@ -18,81 +18,81 @@ describe('parseScheduleInput', () => {
   it('should parse "N分後 メッセージ"', () => {
     const result = parseScheduleInput('30分後 ミーティング開始');
     expect(result).not.toBeNull();
-    expect(result!.type).toBe('once');
-    expect(result!.message).toBe('ミーティング開始');
+    expect(result?.type).toBe('once');
+    expect(result?.message).toBe('ミーティング開始');
     // 30分後
-    const runAt = new Date(result!.runAt!);
+    const runAt = new Date(result!.runAt);
     expect(runAt.getTime() - Date.now()).toBeCloseTo(30 * 60 * 1000, -3);
   });
 
   it('should parse "N時間後 メッセージ"', () => {
     const result = parseScheduleInput('2時間後 休憩しよう');
     expect(result).not.toBeNull();
-    expect(result!.type).toBe('once');
-    expect(result!.message).toBe('休憩しよう');
+    expect(result?.type).toBe('once');
+    expect(result?.message).toBe('休憩しよう');
   });
 
   it('should parse "N秒後 メッセージ"', () => {
     const result = parseScheduleInput('10秒後 テスト');
     expect(result).not.toBeNull();
-    expect(result!.type).toBe('once');
-    expect(result!.message).toBe('テスト');
+    expect(result?.type).toBe('once');
+    expect(result?.message).toBe('テスト');
   });
 
   it('should parse "HH:MM メッセージ"', () => {
     const result = parseScheduleInput('15:00 レビュー');
     expect(result).not.toBeNull();
-    expect(result!.type).toBe('once');
-    expect(result!.message).toBe('レビュー');
-    expect(result!.runAt).toBeDefined();
+    expect(result?.type).toBe('once');
+    expect(result?.message).toBe('レビュー');
+    expect(result?.runAt).toBeDefined();
   });
 
   it('should parse "毎日 HH:MM メッセージ"', () => {
     const result = parseScheduleInput('毎日 9:00 おはよう');
     expect(result).not.toBeNull();
-    expect(result!.type).toBe('cron');
-    expect(result!.expression).toBe('0 9 * * *');
-    expect(result!.message).toBe('おはよう');
+    expect(result?.type).toBe('cron');
+    expect(result?.expression).toBe('0 9 * * *');
+    expect(result?.message).toBe('おはよう');
   });
 
   it('should parse "毎時 メッセージ"', () => {
     const result = parseScheduleInput('毎時 チェック');
     expect(result).not.toBeNull();
-    expect(result!.type).toBe('cron');
-    expect(result!.expression).toBe('0 * * * *');
-    expect(result!.message).toBe('チェック');
+    expect(result?.type).toBe('cron');
+    expect(result?.expression).toBe('0 * * * *');
+    expect(result?.message).toBe('チェック');
   });
 
   it('should parse "毎時 N分 メッセージ"', () => {
     const result = parseScheduleInput('毎時 15分 レポート');
     expect(result).not.toBeNull();
-    expect(result!.type).toBe('cron');
-    expect(result!.expression).toBe('15 * * * *');
-    expect(result!.message).toBe('レポート');
+    expect(result?.type).toBe('cron');
+    expect(result?.expression).toBe('15 * * * *');
+    expect(result?.message).toBe('レポート');
   });
 
   it('should parse "毎週月曜 HH:MM メッセージ"', () => {
     const result = parseScheduleInput('毎週月曜 10:00 週次ミーティング');
     expect(result).not.toBeNull();
-    expect(result!.type).toBe('cron');
-    expect(result!.expression).toBe('0 10 * * 1');
-    expect(result!.message).toBe('週次ミーティング');
+    expect(result?.type).toBe('cron');
+    expect(result?.expression).toBe('0 10 * * 1');
+    expect(result?.message).toBe('週次ミーティング');
   });
 
   it('should parse "cron 式 メッセージ"', () => {
     const result = parseScheduleInput('cron 0 9 * * * おはよう');
     expect(result).not.toBeNull();
-    expect(result!.type).toBe('cron');
-    expect(result!.expression).toBe('0 9 * * *');
-    expect(result!.message).toBe('おはよう');
+    expect(result?.type).toBe('cron');
+    expect(result?.expression).toBe('0 9 * * *');
+    expect(result?.message).toBe('おはよう');
   });
 
   it('should parse "YYYY-MM-DD HH:MM メッセージ"', () => {
     const result = parseScheduleInput('2025-03-01 14:00 締め切り');
     expect(result).not.toBeNull();
-    expect(result!.type).toBe('once');
-    expect(result!.message).toBe('締め切り');
-    const runAt = new Date(result!.runAt!);
+    expect(result?.type).toBe('once');
+    expect(result?.message).toBe('締め切り');
+    const runAt = new Date(result!.runAt);
     expect(runAt.getFullYear()).toBe(2025);
     expect(runAt.getMonth()).toBe(2); // March = 2
   });
@@ -105,23 +105,23 @@ describe('parseScheduleInput', () => {
   it('should parse "起動時 メッセージ"', () => {
     const result = parseScheduleInput('起動時 ウェルカムメッセージ');
     expect(result).not.toBeNull();
-    expect(result!.type).toBe('startup');
-    expect(result!.message).toBe('ウェルカムメッセージ');
+    expect(result?.type).toBe('startup');
+    expect(result?.message).toBe('ウェルカムメッセージ');
   });
 
   it('should parse "startup メッセージ"', () => {
     const result = parseScheduleInput('startup Initialize system');
     expect(result).not.toBeNull();
-    expect(result!.type).toBe('startup');
-    expect(result!.message).toBe('Initialize system');
+    expect(result?.type).toBe('startup');
+    expect(result?.message).toBe('Initialize system');
   });
 
   it('should parse "起動時 メッセージ" with channel option', () => {
     const result = parseScheduleInput('-c <#123456> 起動時 起動しました');
     expect(result).not.toBeNull();
-    expect(result!.type).toBe('startup');
-    expect(result!.message).toBe('起動しました');
-    expect(result!.targetChannelId).toBe('123456');
+    expect(result?.type).toBe('startup');
+    expect(result?.message).toBe('起動しました');
+    expect(result?.targetChannelId).toBe('123456');
   });
 });
 
@@ -205,12 +205,12 @@ describe('Scheduler', () => {
       expression: '0 18 * * *',
       message: 'test2',
       channelId: 'ch2',
-      platform: 'slack',
+      platform: 'discord',
     });
 
     expect(scheduler.list().length).toBe(2);
     expect(scheduler.list('ch1').length).toBe(1);
-    expect(scheduler.list(undefined, 'slack').length).toBe(1);
+    expect(scheduler.list('ch2').length).toBe(1);
   });
 
   it('should remove a schedule', () => {

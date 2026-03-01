@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 /**
  * セッション管理（チャンネルID → Claude CodeセッションID）
@@ -56,7 +56,7 @@ function saveSessionsToFile(): void {
   try {
     mkdirSync(dirname(path), { recursive: true });
     const obj = Object.fromEntries(sessions);
-    writeFileSync(path, JSON.stringify(obj, null, 2) + '\n', 'utf-8');
+    writeFileSync(path, `${JSON.stringify(obj, null, 2)}\n`, 'utf-8');
   } catch (err) {
     console.error('[thor] Failed to save sessions:', err);
   }

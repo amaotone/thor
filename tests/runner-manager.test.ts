@@ -10,8 +10,6 @@ vi.mock('../src/persistent-runner.js', () => {
     private sessionId = '';
     private resolveRun: ((value: unknown) => void) | null = null;
 
-    constructor() {}
-
     async run(prompt: string) {
       this.currentPrompt = prompt;
       this.busy = true;
@@ -266,8 +264,8 @@ describe('RunnerManager', () => {
 
     expect(ch1).toBeDefined();
     expect(ch2).toBeDefined();
-    expect(ch1!.idleSeconds).toBeGreaterThanOrEqual(5);
-    expect(ch2!.idleSeconds).toBeLessThanOrEqual(1);
+    expect(ch1?.idleSeconds).toBeGreaterThanOrEqual(5);
+    expect(ch2?.idleSeconds).toBeLessThanOrEqual(1);
   });
 
   it('should cancelAll across multiple runners for a channel', async () => {

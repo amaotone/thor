@@ -1,5 +1,5 @@
-import { type ChildProcess, spawn } from 'child_process';
-import { EventEmitter } from 'events';
+import { type ChildProcess, spawn } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import type { AgentRunner, RunOptions, RunResult, StreamCallbacks } from './agent-runner.js';
 import { mergeTexts } from './agent-runner.js';
 import { buildPersistentSystemPrompt } from './base-runner.js';
@@ -282,7 +282,7 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
     };
 
     console.log(`[persistent-runner] Sending request (queue: ${this.queue.length} remaining)`);
-    proc.stdin?.write(JSON.stringify(message) + '\n');
+    proc.stdin?.write(`${JSON.stringify(message)}\n`);
 
     // タイムアウト設定: タイムアウト時はプロセスをkillして状態をクリーンに
     const timeout = setTimeout(() => {

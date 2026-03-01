@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 describe('config', () => {
   const originalEnv = process.env;
@@ -14,11 +14,10 @@ describe('config', () => {
 
   it('should throw error when no tokens are set', async () => {
     delete process.env.DISCORD_TOKEN;
-    delete process.env.SLACK_BOT_TOKEN;
 
     // キャッシュをクリアして再インポート
     const { loadConfig } = await import('../src/config.js');
-    expect(() => loadConfig()).toThrow('DISCORD_TOKEN or SLACK_BOT_TOKEN');
+    expect(() => loadConfig()).toThrow('DISCORD_TOKEN');
   });
 
   it('should load Discord config when DISCORD_TOKEN is set', async () => {
@@ -41,16 +40,6 @@ describe('config', () => {
     const config = loadConfig();
 
     expect(config.agent.backend).toBe('claude-code');
-  });
-
-  it('should accept codex backend', async () => {
-    process.env.DISCORD_TOKEN = 'test-token';
-    process.env.AGENT_BACKEND = 'codex';
-
-    const { loadConfig } = await import('../src/config.js');
-    const config = loadConfig();
-
-    expect(config.agent.backend).toBe('codex');
   });
 
   it('should throw error for invalid backend', async () => {

@@ -1,6 +1,6 @@
 import { DEFAULT_TIMEOUT_MS } from './constants.js';
 
-export type AgentBackend = 'claude-code' | 'codex' | 'gemini';
+export type AgentBackend = 'claude-code';
 
 export interface AgentConfig {
   model?: string;
@@ -24,16 +24,6 @@ export interface Config {
     streaming?: boolean;
     showThinking?: boolean;
   };
-  slack: {
-    enabled: boolean;
-    botToken?: string;
-    appToken?: string;
-    allowedUsers?: string[];
-    autoReplyChannels?: string[];
-    replyInThread?: boolean;
-    streaming?: boolean;
-    showThinking?: boolean;
-  };
   agent: {
     backend: AgentBackend;
     config: AgentConfig;
@@ -46,24 +36,17 @@ export interface Config {
 
 export function loadConfig(): Config {
   const discordToken = process.env.DISCORD_TOKEN;
-  const slackBotToken = process.env.SLACK_BOT_TOKEN;
-  const slackAppToken = process.env.SLACK_APP_TOKEN;
 
-  // 少なくともどちらかが有効である必要がある
-  if (!discordToken && !slackBotToken) {
-    throw new Error('DISCORD_TOKEN or SLACK_BOT_TOKEN environment variable is required');
+  if (!discordToken) {
+    throw new Error('DISCORD_TOKEN environment variable is required');
   }
 
   const discordAllowedUser = process.env.DISCORD_ALLOWED_USER;
-  const slackAllowedUser = process.env.SLACK_ALLOWED_USER;
   const discordAllowedUsers = discordAllowedUser ? [discordAllowedUser] : [];
-  const slackAllowedUsers = slackAllowedUser ? [slackAllowedUser] : [];
 
   const backend = (process.env.AGENT_BACKEND || 'claude-code') as AgentBackend;
-  if (backend !== 'claude-code' && backend !== 'codex' && backend !== 'gemini') {
-    throw new Error(
-      `Invalid AGENT_BACKEND: ${backend}. Must be 'claude-code', 'codex', or 'gemini'`
-    );
+  if (backend !== 'claude-code') {
+    throw new Error(`Invalid AGENT_BACKEND: ${backend}. Must be 'claude-code'`);
   }
 
   const agentConfig: AgentConfig = {
@@ -89,19 +72,6 @@ export function loadConfig(): Config {
           .filter(Boolean) || [],
       streaming: process.env.DISCORD_STREAMING !== 'false',
       showThinking: process.env.DISCORD_SHOW_THINKING !== 'false',
-    },
-    slack: {
-      enabled: !!slackBotToken && !!slackAppToken,
-      botToken: slackBotToken,
-      appToken: slackAppToken,
-      allowedUsers: slackAllowedUsers,
-      autoReplyChannels:
-        process.env.SLACK_AUTO_REPLY_CHANNELS?.split(',')
-          .map((s) => s.trim())
-          .filter(Boolean) || [],
-      replyInThread: process.env.SLACK_REPLY_IN_THREAD !== 'false',
-      streaming: process.env.SLACK_STREAMING !== 'false',
-      showThinking: process.env.SLACK_SHOW_THINKING !== 'false',
     },
     agent: {
       backend,

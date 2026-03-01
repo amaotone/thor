@@ -1,14 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, readFileSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
-  initSessions,
-  getSession,
-  setSession,
-  deleteSession,
   clearSessions,
+  deleteSession,
+  getSession,
   getSessionCount,
+  initSessions,
+  setSession,
 } from '../src/sessions.js';
 
 describe('sessions', () => {
@@ -36,7 +36,7 @@ describe('sessions', () => {
       // 事前にファイルを作成
       const sessionsPath = join(testDir, 'sessions.json');
       const data = { 'channel-1': 'session-abc', 'channel-2': 'session-def' };
-      require('fs').writeFileSync(sessionsPath, JSON.stringify(data));
+      require('node:fs').writeFileSync(sessionsPath, JSON.stringify(data));
 
       initSessions(testDir);
       expect(getSessionCount()).toBe(2);

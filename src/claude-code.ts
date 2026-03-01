@@ -1,9 +1,9 @@
-import { spawn } from 'child_process';
-import { processManager } from './process-manager.js';
+import { spawn } from 'node:child_process';
 import type { RunOptions, RunResult, StreamCallbacks } from './agent-runner.js';
 import { mergeTexts } from './agent-runner.js';
-import { DEFAULT_TIMEOUT_MS } from './constants.js';
 import { buildSystemPrompt } from './base-runner.js';
+import { DEFAULT_TIMEOUT_MS } from './constants.js';
+import { processManager } from './process-manager.js';
 
 export interface ClaudeCodeOptions {
   model?: string;

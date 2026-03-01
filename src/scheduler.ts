@@ -1,21 +1,21 @@
 import {
-  readFileSync,
-  writeFileSync,
-  mkdirSync,
   existsSync,
-  watchFile,
-  unwatchFile,
+  mkdirSync,
+  readFileSync,
   renameSync,
   unlinkSync,
-} from 'fs';
-import { dirname, join } from 'path';
+  unwatchFile,
+  watchFile,
+  writeFileSync,
+} from 'node:fs';
+import { dirname, join } from 'node:path';
 import cron from 'node-cron';
 /** スケジュール一覧の項目間区切り（splitMessage用） */
 export const SCHEDULE_SEPARATOR = '{{SPLIT}}';
 
 // ─── Types ───────────────────────────────────────────────────────────
 export type ScheduleType = 'cron' | 'once' | 'startup';
-export type Platform = 'discord' | 'slack';
+export type Platform = 'discord';
 export interface Schedule {
   id: string;
   type: ScheduleType;
@@ -36,12 +36,8 @@ export interface Schedule {
   /** ラベル（任意） */
   label?: string;
 }
-export interface SendMessageFn {
-  (channelId: string, message: string): Promise<void>;
-}
-export interface AgentRunFn {
-  (prompt: string, channelId: string): Promise<string>;
-}
+export type SendMessageFn = (channelId: string, message: string) => Promise<void>;
+export type AgentRunFn = (prompt: string, channelId: string) => Promise<string>;
 // ─── Scheduler ───────────────────────────────────────────────────────
 export class Scheduler {
   private schedules: Schedule[] = [];
@@ -100,7 +96,7 @@ export class Scheduler {
         throw new Error('runAt is required for one-time schedule');
       }
       const runTime = new Date(schedule.runAt).getTime();
-      if (isNaN(runTime)) {
+      if (Number.isNaN(runTime)) {
         throw new Error(`Invalid date: ${schedule.runAt}`);
       }
       if (runTime <= Date.now()) {
@@ -403,8 +399,8 @@ export function formatScheduleList(
   }
 
   if (schedules.length === 0) {
-    const header = statusHeader.length > 0 ? statusHeader.join('\n') + '\n\n' : '';
-    return header + '📋 スケジュールはありません';
+    const header = statusHeader.length > 0 ? `${statusHeader.join('\n')}\n\n` : '';
+    return `${header}📋 スケジュールはありません`;
   }
 
   // Split into regular schedules and startup tasks
@@ -448,19 +444,19 @@ export function formatScheduleList(
   if (regularSchedules.length > 0) {
     const lines = regularSchedules.map((s, i) => formatItem(s, i));
     sections.push(
-      `📋 **スケジュール一覧** (${regularSchedules.length}件)\n\n${lines.join('\n' + SCHEDULE_SEPARATOR + '\n')}`
+      `📋 **スケジュール一覧** (${regularSchedules.length}件)\n\n${lines.join(`\n${SCHEDULE_SEPARATOR}\n`)}`
     );
   }
 
   if (startupTasks.length > 0) {
     const lines = startupTasks.map((s, i) => formatItem(s, i));
     sections.push(
-      `🚀 **スタートアップタスク** (${startupTasks.length}件)\n\n${lines.join('\n' + SCHEDULE_SEPARATOR + '\n')}`
+      `🚀 **スタートアップタスク** (${startupTasks.length}件)\n\n${lines.join(`\n${SCHEDULE_SEPARATOR}\n`)}`
     );
   }
 
-  const header = statusHeader.length > 0 ? statusHeader.join('\n') + '\n\n' : '';
-  return header + sections.join('\n' + SCHEDULE_SEPARATOR + '\n') + '\n';
+  const header = statusHeader.length > 0 ? `${statusHeader.join('\n')}\n\n` : '';
+  return `${header + sections.join(`\n${SCHEDULE_SEPARATOR}\n`)}\n`;
 }
 function formatTime(iso: string): string {
   const d = new Date(iso);

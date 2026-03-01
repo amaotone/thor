@@ -1,6 +1,6 @@
-import { readFileSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -18,7 +18,7 @@ export interface BaseRunnerOptions {
 /**
  * チャットプラットフォーム連携用のシステムプロンプト（resumeあり）
  */
-export const CHAT_SYSTEM_PROMPT_RESUME = `あなたはチャットプラットフォーム（Discord/Slack）経由で会話しています。
+export const CHAT_SYSTEM_PROMPT_RESUME = `あなたはチャットプラットフォーム（Discord）経由で会話しています。
 
 ## セッション継続
 このセッションは --resume オプションで継続されています。過去の会話履歴は保持されているので、直前の会話内容を覚えています。「再起動したから覚えていない」とは言わないでください。
@@ -30,7 +30,7 @@ thor専用コマンド（Discord操作・ファイル送信・スケジューラ
 /**
  * チャットプラットフォーム連携用のシステムプロンプト（常駐プロセス用）
  */
-export const CHAT_SYSTEM_PROMPT_PERSISTENT = `あなたはチャットプラットフォーム（Discord/Slack）経由で会話しています。
+export const CHAT_SYSTEM_PROMPT_PERSISTENT = `あなたはチャットプラットフォーム（Discord）経由で会話しています。
 
 ## セッション継続
 このセッションは常駐プロセスで実行されています。セッション内の会話履歴は保持されます。

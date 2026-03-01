@@ -1,5 +1,5 @@
-import { readdirSync, existsSync, readFileSync, statSync } from 'fs';
-import { join, basename } from 'path';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import { DISCORD_SAFE_LENGTH } from './constants.js';
 
 export interface Skill {
@@ -18,7 +18,6 @@ export function loadSkills(workdir: string): Skill[] {
   // 複数のスキルディレクトリを探す（優先順位順）
   const skillsDirs = [
     join(workdir, '.claude', 'skills'), // Claude Code形式
-    join(workdir, '.codex', 'skills'), // Codex形式
     join(workdir, 'skills'), // 標準形式
   ];
 
@@ -134,7 +133,7 @@ export function formatSkillList(skills: Skill[]): string {
   for (const skill of skills) {
     // 説明を50文字に切り詰め
     const shortDesc =
-      skill.description.length > 50 ? skill.description.slice(0, 50) + '...' : skill.description;
+      skill.description.length > 50 ? `${skill.description.slice(0, 50)}...` : skill.description;
     lines.push(`• **${skill.name}**: ${shortDesc}`);
   }
   lines.push('', '使い方: `/skill <スキル名>`');

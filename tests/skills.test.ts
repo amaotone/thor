@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { formatSkillList, type Skill } from '../src/skills.js';
 
 describe('skills', () => {
@@ -33,9 +33,7 @@ describe('skills', () => {
     });
 
     it('should include usage instructions', () => {
-      const skills: Skill[] = [
-        { name: 'test', description: 'desc', path: '/path' },
-      ];
+      const skills: Skill[] = [{ name: 'test', description: 'desc', path: '/path' }];
       const result = formatSkillList(skills);
 
       expect(result).toContain('/skill');
