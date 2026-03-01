@@ -1,4 +1,4 @@
-<img width="240" height="240" alt="thor" src="https://github.com/user-attachments/assets/88576d65-dc44-4ab6-b76b-a6cadf4187fb" />
+<img width="240" height="240" alt="thor" src="docs/images/thor.png" />
 
 # thor
 
