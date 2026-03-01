@@ -1,0 +1,65 @@
+<mxGraphModel dx="1200" dy="700" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="490" math="0" shadow="0">
+  <root>
+    <mxCell id="0" />
+    <mxCell id="1" parent="0" />
+
+    <!-- Row 1: User | Discord Layer | Agent Layer | Claude -->
+    <mxCell id="user" value="User" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="30" y="182" width="85" height="55" as="geometry" />
+    </mxCell>
+
+    <mxCell id="discord" value="&lt;b&gt;Discord Layer&lt;/b&gt;&#xa;discord-client / message-handler&#xa;slash-commands / feedback-loop" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#d6b656;fontSize=11;arcSize=6;" vertex="1" parent="1">
+      <mxGeometry x="170" y="125" width="175" height="155" as="geometry" />
+    </mxCell>
+
+    <mxCell id="agent" value="&lt;b&gt;Agent Layer&lt;/b&gt;&#xa;RunnerManager&#xa;PersistentRunner" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fce4ec;strokeColor=#b85450;fontSize=11;arcSize=6;" vertex="1" parent="1">
+      <mxGeometry x="405" y="125" width="175" height="155" as="geometry" />
+    </mxCell>
+
+    <mxCell id="claude" value="Claude Code CLI" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0a30a;strokeColor=#BD7000;fontColor=#000000;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+      <mxGeometry x="640" y="182" width="145" height="55" as="geometry" />
+    </mxCell>
+
+    <!-- Row 2: Scheduler (below Discord) | Workspace (below Agent) -->
+    <mxCell id="scheduler" value="&lt;b&gt;Scheduler&lt;/b&gt;&#xa;cron / スケジュール実行" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;arcSize=6;" vertex="1" parent="1">
+      <mxGeometry x="170" y="360" width="175" height="70" as="geometry" />
+    </mxCell>
+
+    <mxCell id="workspace" value="&lt;b&gt;Workspace&lt;/b&gt;&#xa;AGENTS.md / USER.md&#xa;SOUL.md / .beads/ / .thor/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;arcSize=6;" vertex="1" parent="1">
+      <mxGeometry x="405" y="360" width="175" height="70" as="geometry" />
+    </mxCell>
+
+    <!-- Edges -->
+
+    <!-- User → Discord -->
+    <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="user" target="discord" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Discord → Agent -->
+    <mxCell id="e2" value="prompt" style="edgeStyle=orthogonalEdgeStyle;fontSize=10;" edge="1" source="discord" target="agent" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Agent → Claude -->
+    <mxCell id="e3" value="spawn" style="edgeStyle=orthogonalEdgeStyle;fontSize=10;" edge="1" source="agent" target="claude" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Agent → Workspace (straight down) -->
+    <mxCell id="e4" value="読み込み" style="edgeStyle=orthogonalEdgeStyle;fontSize=10;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="agent" target="workspace" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Scheduler → Discord (straight up) -->
+    <mxCell id="e5" value="結果送信" style="edgeStyle=orthogonalEdgeStyle;fontSize=10;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" source="scheduler" target="discord" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Scheduler → Agent (right then up) -->
+    <mxCell id="e6" value="定期実行" style="edgeStyle=orthogonalEdgeStyle;fontSize=10;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="scheduler" target="agent" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+  </root>
+</mxGraphModel>
