@@ -86,8 +86,8 @@ export function loadSoulMd(workdir?: string): string {
  * AGENTS.md等のワークスペース設定は各CLIの自動読み込みに任せる
  */
 export function loadThorCommands(): string {
-  // dist/ から1つ上がプロジェクトルート
-  const projectRoot = join(__dirname, '..');
+  // src/agent/ or dist/agent/ から2つ上がプロジェクトルート
+  const projectRoot = join(__dirname, '..', '..');
   const filePath = join(projectRoot, 'prompts', 'THOR_COMMANDS.md');
 
   if (!existsSync(filePath)) {
