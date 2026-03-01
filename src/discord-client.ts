@@ -24,7 +24,6 @@ import {
 import { createLogger } from './logger.js';
 import { executeSkillCommand, handleResponseFeedback, processPrompt } from './message-handler.js';
 import { extractDiscordSendFromPrompt, splitMessage } from './message-utils.js';
-import { processManager } from './process-manager.js';
 import { handleScheduleCommand, handleScheduleMessage } from './schedule-handler.js';
 import type { Scheduler } from './scheduler.js';
 import { deleteSession, getSession, setSession } from './sessions.js';
@@ -43,25 +42,15 @@ function formatChannelStatus(
   agentRunner: AgentRunner
 ): string {
   const count = processingChannels.get(channelId) ?? 0;
-  const running = processManager.isRunning(channelId);
-  const pid = processManager.getPid(channelId);
   const sessionId = getSession(channelId);
 
   const lines = ['📊 **現在の実行状態**'];
   lines.push(`- チャンネル: <#${channelId}>`);
   lines.push(`- 実行ロック: ${count > 0 ? `🔒 ${count}件処理中` : '🔓 待機中'}`);
-  lines.push(`- 実行プロセス: ${running ? `✅ 稼働中 (PID: ${pid ?? '-'})` : '⏹️ なし'}`);
   lines.push(`- セッション: ${sessionId ? `✅ ${sessionId.slice(0, 12)}...` : '❌ なし'}`);
 
-  const runnerWithStatus = agentRunner as AgentRunner & {
-    getStatus?: () => {
-      poolSize: number;
-      maxProcesses: number;
-      channels: Array<{ channelId: string; idleSeconds: number; alive: boolean }>;
-    };
-  };
-  if (typeof runnerWithStatus.getStatus === 'function') {
-    const status = runnerWithStatus.getStatus();
+  const status = agentRunner.getStatus?.();
+  if (status) {
     const channelStatus = status.channels.find((c) => c.channelId === channelId);
     lines.push(`- Runner pool: ${status.poolSize}/${status.maxProcesses}`);
     if (channelStatus) {
@@ -419,10 +408,9 @@ async function handleSlashCommand(
   }
 
   if (interaction.commandName === 'stop') {
-    const processStopped = processManager.stop(channelId);
     const cancelledCount = agentRunner.cancelAll?.(channelId) ?? 0;
     deps.processingChannels.delete(channelId);
-    if (processStopped || cancelledCount > 0) {
+    if (cancelledCount > 0) {
       await interaction.reply(
         `🛑 タスクを停止しました${cancelledCount > 1 ? `（${cancelledCount}件キャンセル）` : ''}`
       );
@@ -519,10 +507,9 @@ async function handleMessage(message: Message, client: Client, deps: MessageDeps
 
   // 停止コマンド
   if (['!stop', 'stop', '/stop'].includes(normalizedPrompt)) {
-    const processStopped = processManager.stop(message.channel.id);
     const cancelledCount = agentRunner.cancelAll?.(message.channel.id) ?? 0;
     processingChannels.delete(message.channel.id);
-    if (processStopped || cancelledCount > 0) {
+    if (cancelledCount > 0) {
       await message.reply(
         `🛑 タスクを停止しました${cancelledCount > 1 ? `（${cancelledCount}件キャンセル）` : ''}`
       );

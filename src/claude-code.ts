@@ -4,7 +4,6 @@ import { mergeTexts } from './agent-runner.js';
 import { buildSystemPrompt } from './base-runner.js';
 import { DEFAULT_TIMEOUT_MS } from './constants.js';
 import { createLogger } from './logger.js';
-import { processManager } from './process-manager.js';
 
 const logger = createLogger('claude-code');
 
@@ -62,7 +61,7 @@ export class ClaudeCodeRunner {
       : ' (new)';
     logger.info(`Executing in ${this.workdir || 'default dir'}${sessionInfo}`);
 
-    const result = await this.execute(args, options?.channelId);
+    const result = await this.execute(args);
     const response = this.parseResponse(result);
 
     return {
@@ -71,18 +70,13 @@ export class ClaudeCodeRunner {
     };
   }
 
-  private execute(args: string[], channelId?: string): Promise<string> {
+  private execute(args: string[]): Promise<string> {
     return new Promise((resolve, reject) => {
       const proc = spawn('claude', args, {
         stdio: ['ignore', 'pipe', 'pipe'],
         cwd: this.workdir,
         detached: process.platform !== 'win32',
       });
-
-      // プロセスマネージャーに登録
-      if (channelId) {
-        processManager.register(channelId, proc);
-      }
 
       let stdout = '';
       let stderr = '';
@@ -169,25 +163,16 @@ export class ClaudeCodeRunner {
       : ' (new)';
     logger.info(`Streaming in ${this.workdir || 'default dir'}${sessionInfo}`);
 
-    return this.executeStream(args, callbacks, options?.channelId);
+    return this.executeStream(args, callbacks);
   }
 
-  private executeStream(
-    args: string[],
-    callbacks: StreamCallbacks,
-    channelId?: string
-  ): Promise<RunResult> {
+  private executeStream(args: string[], callbacks: StreamCallbacks): Promise<RunResult> {
     return new Promise((resolve, reject) => {
       const proc = spawn('claude', args, {
         stdio: ['ignore', 'pipe', 'pipe'],
         cwd: this.workdir,
         detached: process.platform !== 'win32',
       });
-
-      // プロセスマネージャーに登録
-      if (channelId) {
-        processManager.register(channelId, proc);
-      }
 
       let fullText = '';
       let sessionId = '';

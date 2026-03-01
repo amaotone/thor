@@ -9,6 +9,28 @@ describe('agent-runner', () => {
       expect(runner.run).toBeDefined();
       expect(runner.runStream).toBeDefined();
     });
+
+    it('should have cancel and cancelAll methods', () => {
+      const runner = createAgentRunner({ workdir: './workspace', timeoutMs: 300000 });
+      expect(runner.cancel).toBeDefined();
+      expect(runner.cancelAll).toBeDefined();
+    });
+
+    it('should have destroy and shutdown methods', () => {
+      const runner = createAgentRunner({ workdir: './workspace', timeoutMs: 300000 });
+      expect(runner.destroy).toBeDefined();
+      expect(runner.shutdown).toBeDefined();
+    });
+
+    it('should have getStatus method', () => {
+      const runner = createAgentRunner({ workdir: './workspace', timeoutMs: 300000 });
+      expect(runner.getStatus).toBeDefined();
+      const status = runner.getStatus?.();
+      expect(status).toHaveProperty('poolSize');
+      expect(status).toHaveProperty('maxProcesses');
+      expect(status).toHaveProperty('channels');
+      runner.shutdown?.();
+    });
   });
 
   describe('mergeTexts', () => {

@@ -20,6 +20,18 @@ export interface StreamCallbacks {
 /**
  * AIエージェントランナーの統一インターフェース
  */
+export interface ChannelStatus {
+  channelId: string;
+  idleSeconds: number;
+  alive: boolean;
+}
+
+export interface RunnerStatus {
+  poolSize: number;
+  maxProcesses: number;
+  channels: ChannelStatus[];
+}
+
 export interface AgentRunner {
   run(prompt: string, options?: RunOptions): Promise<RunResult>;
   runStream(prompt: string, callbacks: StreamCallbacks, options?: RunOptions): Promise<RunResult>;
@@ -31,6 +43,8 @@ export interface AgentRunner {
   destroy?(channelId: string): boolean;
   /** シャットダウン */
   shutdown?(): void;
+  /** ランナープールの状態を取得 */
+  getStatus?(): RunnerStatus;
 }
 
 /**
