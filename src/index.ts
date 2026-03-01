@@ -140,11 +140,11 @@ async function main() {
   const slackAllowed = config.slack.allowedUsers || [];
 
   if (config.discord.enabled && discordAllowed.length === 0) {
-    console.error('[thor] Error: ALLOWED_USER must be set for Discord');
+    console.error('[thor] Error: DISCORD_ALLOWED_USER must be set for Discord');
     process.exit(1);
   }
   if (config.slack.enabled && slackAllowed.length === 0) {
-    console.error('[thor] Error: SLACK_ALLOWED_USER or ALLOWED_USER must be set for Slack');
+    console.error('[thor] Error: SLACK_ALLOWED_USER must be set for Slack');
     process.exit(1);
   }
   if (discordAllowed.length > 1 || slackAllowed.length > 1) {
@@ -177,7 +177,7 @@ async function main() {
   console.log(`[thor] Settings loaded: autoRestart=${initialSettings.autoRestart}`);
 
   // スケジューラを初期化（ワークスペースの .thor を使用）
-  const dataDir = process.env.THOR_DATA_DIR || process.env.DATA_DIR || join(workdir, '.thor');
+  const dataDir = process.env.THOR_DATA_DIR || join(workdir, '.thor');
   const scheduler = new Scheduler(dataDir);
 
   // セッション永続化を初期化
@@ -319,8 +319,7 @@ async function main() {
     }
 
     if (interaction.commandName === 'stop') {
-      const stopped =
-        processManager.stop(channelId) || agentRunner.cancel?.(channelId) || false;
+      const stopped = processManager.stop(channelId) || agentRunner.cancel?.(channelId) || false;
       processingChannels.delete(channelId);
       if (stopped) {
         await interaction.reply('🛑 タスクを停止しました');
@@ -1138,9 +1137,7 @@ async function main() {
 
       // !schedule コマンド（引数なしでもlist表示、sourceMessage必須）
       if (sourceMessage && (trimmed === '!schedule' || trimmed.startsWith('!schedule '))) {
-        console.log(
-          `[thor] Processing schedule command from response: ${trimmed.slice(0, 50)}...`
-        );
+        console.log(`[thor] Processing schedule command from response: ${trimmed.slice(0, 50)}...`);
         await executeScheduleFromResponse(trimmed, sourceMessage, scheduler, config.scheduler);
       }
 
@@ -1195,7 +1192,9 @@ async function main() {
     // 停止コマンド
     if (['!stop', 'stop', '/stop'].includes(normalizedPrompt)) {
       const stopped =
-        processManager.stop(message.channel.id) || agentRunner.cancel?.(message.channel.id) || false;
+        processManager.stop(message.channel.id) ||
+        agentRunner.cancel?.(message.channel.id) ||
+        false;
       processingChannels.delete(message.channel.id);
       await message.reply(stopped ? '🛑 タスクを停止しました' : '実行中のタスクはありません');
       return;

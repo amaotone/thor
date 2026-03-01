@@ -42,8 +42,6 @@ export interface Config {
     enabled: boolean;
     startupEnabled: boolean;
   };
-  // 後方互換性のため残す
-  claudeCode: AgentConfig;
 }
 
 export function loadConfig(): Config {
@@ -113,7 +111,5 @@ export function loadConfig(): Config {
       enabled: process.env.SCHEDULER_ENABLED !== 'false', // デフォルトで有効
       startupEnabled: process.env.STARTUP_ENABLED !== 'false', // デフォルトで有効
     },
-    // 後方互換性のため残す
-    claudeCode: agentConfig,
   };
 }

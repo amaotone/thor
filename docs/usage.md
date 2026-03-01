@@ -107,10 +107,10 @@ npx tsx src/schedule-cli.ts toggle --channel <channelId> 1
 
 ### データ保存
 
-スケジュールデータは `${DATA_DIR}/schedules.json` に保存されます。
+スケジュールデータは `${THOR_DATA_DIR}/schedules.json` に保存されます。
 
 - デフォルト: `/workspace/.thor/schedules.json`
-- 環境変数 `THOR_DATA_DIR`（または `DATA_DIR`）で変更可能
+- 環境変数 `THOR_DATA_DIR` で変更可能
 
 ## Discordコマンド
 

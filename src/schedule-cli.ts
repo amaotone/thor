@@ -18,7 +18,7 @@ import {
   type Platform,
 } from './scheduler.js';
 
-const DATA_DIR = process.env.THOR_DATA_DIR || process.env.DATA_DIR || undefined;
+const schedulerDataDir = process.env.THOR_DATA_DIR || undefined;
 const schedulerConfig = {
   enabled: process.env.SCHEDULER_ENABLED !== 'false',
   startupEnabled: process.env.STARTUP_ENABLED !== 'false',
@@ -42,7 +42,7 @@ Usage:
   "毎週月曜 10:00 週次MTG"
 
 環境変数:
-  THOR_DATA_DIR or DATA_DIR  データディレクトリ（default: ./.thor）
+  THOR_DATA_DIR  データディレクトリ（default: ./.thor）
 `);
 }
 
@@ -75,7 +75,7 @@ function main(): void {
     process.exit(0);
   }
 
-  const scheduler = new Scheduler(DATA_DIR, { quiet: true });
+  const scheduler = new Scheduler(schedulerDataDir, { quiet: true });
 
   switch (command) {
     case 'add': {

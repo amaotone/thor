@@ -13,7 +13,7 @@ let sessions: SessionMap = new Map();
 
 /**
  * sessions.json のパスを初期化
- * @param dataDir DATA_DIR または .thor ディレクトリ
+ * @param dataDir THOR_DATA_DIR または .thor ディレクトリ
  */
 export function initSessions(dataDir: string): void {
   sessionsPath = join(dataDir, 'sessions.json');

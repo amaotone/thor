@@ -97,7 +97,7 @@ AGENTS.md / CHARACTER.md / USER.md 等のワークスペース設定は、各AI 
 - `once`: 単発リマインダー（指定時刻に1回実行）
 
 **永続化:**
-- JSONファイル（`${DATA_DIR}/schedules.json`）
+- JSONファイル（`${THOR_DATA_DIR}/schedules.json`）
 - ファイル変更を監視して自動リロード（debounce付き）
 
 **タイムゾーン:**
@@ -166,7 +166,7 @@ skills/
 
 thorは**1人のユーザー**が使う前提で設計されています：
 
-- 認証は `ALLOWED_USER` による単純なID照合
+- 認証は `DISCORD_ALLOWED_USER` / `SLACK_ALLOWED_USER` による単純なID照合
 - セッションはチャンネル単位で管理
 - マルチテナント機能は意図的に省略
 
@@ -197,9 +197,9 @@ AIが出力する特殊コマンドを検出して自動実行：
 
 | データ | 保存先 | 形式 |
 |--------|--------|------|
-| スケジュール | `${DATA_DIR}/schedules.json` | JSON |
+| スケジュール | `${THOR_DATA_DIR}/schedules.json` | JSON |
 | ランタイム設定 | `${WORKSPACE}/settings.json` | JSON |
-| セッション | `${DATA_DIR}/sessions.json` | JSON（チャンネルID→セッションID） |
+| セッション | `${THOR_DATA_DIR}/sessions.json` | JSON（チャンネルID→セッションID） |
 
 ## ファイル構成
 
@@ -289,7 +289,7 @@ prompts/
 | `PERSISTENT_MODE` | 常駐プロセスモード（高速応答） | `true` |
 | `MAX_PROCESSES` | 同時実行プロセス数の上限 | `10` |
 | `IDLE_TIMEOUT_MS` | アイドルプロセスの自動終了時間（ミリ秒） | `1800000`（30分） |
-| `THOR_DATA_DIR` | データ保存ディレクトリ（`DATA_DIR` でも可） | `/workspace/.thor` |
+| `THOR_DATA_DIR` | データ保存ディレクトリ | `/workspace/.thor` |
 
 ### GitHub CLI
 

@@ -3,7 +3,7 @@ import path from 'path';
 import os from 'os';
 
 const DOWNLOAD_DIR = path.join(
-  process.env.THOR_DATA_DIR || process.env.DATA_DIR || path.join(os.homedir(), '.thor'),
+  process.env.THOR_DATA_DIR || path.join(os.homedir(), '.thor'),
   'media',
   'attachments'
 );
