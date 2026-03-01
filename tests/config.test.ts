@@ -47,7 +47,7 @@ describe('config', () => {
     process.env.AGENT_BACKEND = 'invalid';
 
     const { loadConfig } = await import('../src/config.js');
-    expect(() => loadConfig()).toThrow('Invalid AGENT_BACKEND');
+    expect(() => loadConfig()).toThrow();
   });
 
   it('should enable scheduler and startup by default', async () => {

@@ -1,85 +1,94 @@
+import { z } from 'zod';
 import { DEFAULT_TIMEOUT_MS } from './constants.js';
 
-export type AgentBackend = 'claude-code';
+const envBoolTrue = (envVar: string | undefined) => envVar !== 'false';
 
-export interface AgentConfig {
-  model?: string;
-  timeoutMs?: number;
-  workdir?: string;
-  skipPermissions?: boolean;
+const AgentConfigSchema = z.object({
+  model: z.string().optional(),
+  timeoutMs: z.number().int().positive().default(DEFAULT_TIMEOUT_MS),
+  workdir: z.string().optional(),
+  skipPermissions: z.boolean().default(false),
   /** 常駐プロセスモード（高速化） */
-  persistent?: boolean;
+  persistent: z.boolean().default(true),
   /** 同時実行プロセス数の上限（RunnerManager用） */
-  maxProcesses?: number;
+  maxProcesses: z.number().int().min(1).default(10),
   /** アイドルタイムアウト（ミリ秒、RunnerManager用） */
-  idleTimeoutMs?: number;
-}
+  idleTimeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .default(30 * 60 * 1000),
+});
 
-export interface Config {
-  discord: {
-    enabled: boolean;
-    token: string;
-    allowedUsers?: string[];
-    autoReplyChannels?: string[];
-    streaming?: boolean;
-    showThinking?: boolean;
-  };
-  agent: {
-    backend: AgentBackend;
-    config: AgentConfig;
-  };
-  scheduler: {
-    enabled: boolean;
-    startupEnabled: boolean;
-  };
+const ConfigSchema = z.object({
+  discord: z.object({
+    enabled: z.boolean(),
+    token: z.string().min(1, 'DISCORD_TOKEN is required'),
+    allowedUsers: z.array(z.string()).default([]),
+    autoReplyChannels: z.array(z.string()).default([]),
+    streaming: z.boolean().default(true),
+    showThinking: z.boolean().default(true),
+  }),
+  agent: z.object({
+    backend: z.literal('claude-code'),
+    config: AgentConfigSchema,
+  }),
+  scheduler: z.object({
+    enabled: z.boolean().default(true),
+    startupEnabled: z.boolean().default(true),
+  }),
+});
+
+export type AgentBackend = z.infer<typeof ConfigSchema>['agent']['backend'];
+export type AgentConfig = z.infer<typeof AgentConfigSchema>;
+export type Config = z.infer<typeof ConfigSchema>;
+
+function parseIntEnv(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = parseInt(value, 10);
+  if (Number.isNaN(parsed)) {
+    throw new Error(`Invalid integer value: ${value}`);
+  }
+  return parsed;
 }
 
 export function loadConfig(): Config {
   const discordToken = process.env.DISCORD_TOKEN;
-
   if (!discordToken) {
     throw new Error('DISCORD_TOKEN environment variable is required');
   }
 
   const discordAllowedUser = process.env.DISCORD_ALLOWED_USER;
-  const discordAllowedUsers = discordAllowedUser ? [discordAllowedUser] : [];
 
-  const backend = (process.env.AGENT_BACKEND || 'claude-code') as AgentBackend;
-  if (backend !== 'claude-code') {
-    throw new Error(`Invalid AGENT_BACKEND: ${backend}. Must be 'claude-code'`);
-  }
-
-  const agentConfig: AgentConfig = {
-    model: process.env.AGENT_MODEL || undefined,
-    timeoutMs: process.env.TIMEOUT_MS ? parseInt(process.env.TIMEOUT_MS, 10) : DEFAULT_TIMEOUT_MS,
-    workdir: process.env.WORKSPACE_PATH || undefined,
-    skipPermissions: process.env.SKIP_PERMISSIONS === 'true',
-    persistent: process.env.PERSISTENT_MODE !== 'false', // デフォルトで有効
-    maxProcesses: process.env.MAX_PROCESSES ? parseInt(process.env.MAX_PROCESSES, 10) : 10,
-    idleTimeoutMs: process.env.IDLE_TIMEOUT_MS
-      ? parseInt(process.env.IDLE_TIMEOUT_MS, 10)
-      : 30 * 60 * 1000, // 30分
-  };
-
-  return {
+  const raw = {
     discord: {
-      enabled: !!discordToken,
-      token: discordToken || '',
-      allowedUsers: discordAllowedUsers,
+      enabled: true,
+      token: discordToken,
+      allowedUsers: discordAllowedUser ? [discordAllowedUser] : [],
       autoReplyChannels:
         process.env.AUTO_REPLY_CHANNELS?.split(',')
           .map((s) => s.trim())
-          .filter(Boolean) || [],
-      streaming: process.env.DISCORD_STREAMING !== 'false',
-      showThinking: process.env.DISCORD_SHOW_THINKING !== 'false',
+          .filter(Boolean) ?? [],
+      streaming: envBoolTrue(process.env.DISCORD_STREAMING),
+      showThinking: envBoolTrue(process.env.DISCORD_SHOW_THINKING),
     },
     agent: {
-      backend,
-      config: agentConfig,
+      backend: process.env.AGENT_BACKEND || 'claude-code',
+      config: {
+        model: process.env.AGENT_MODEL || undefined,
+        timeoutMs: parseIntEnv(process.env.TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
+        workdir: process.env.WORKSPACE_PATH || undefined,
+        skipPermissions: process.env.SKIP_PERMISSIONS === 'true',
+        persistent: envBoolTrue(process.env.PERSISTENT_MODE),
+        maxProcesses: parseIntEnv(process.env.MAX_PROCESSES, 10),
+        idleTimeoutMs: parseIntEnv(process.env.IDLE_TIMEOUT_MS, 30 * 60 * 1000),
+      },
     },
     scheduler: {
-      enabled: process.env.SCHEDULER_ENABLED !== 'false', // デフォルトで有効
-      startupEnabled: process.env.STARTUP_ENABLED !== 'false', // デフォルトで有効
+      enabled: envBoolTrue(process.env.SCHEDULER_ENABLED),
+      startupEnabled: envBoolTrue(process.env.STARTUP_ENABLED),
     },
   };
+
+  return ConfigSchema.parse(raw);
 }

@@ -35,8 +35,8 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
   // サーキットブレーカー: 連続クラッシュ対策
   private crashCount = 0;
   private lastCrashTime = 0;
-  private static readonly MAX_CRASHES = 3;
-  private static readonly CRASH_WINDOW_MS = 60000; // 1分以内に3回クラッシュで停止
+  private readonly maxCrashes: number;
+  private readonly crashWindowMs: number;
 
   private model?: string;
   private timeoutMs: number;
@@ -50,12 +50,16 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
     timeoutMs?: number;
     workdir?: string;
     skipPermissions?: boolean;
+    maxCrashes?: number;
+    crashWindowMs?: number;
   }) {
     super();
     this.model = options?.model;
     this.timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.workdir = options?.workdir;
     this.skipPermissions = options?.skipPermissions ?? false;
+    this.maxCrashes = options?.maxCrashes ?? 3;
+    this.crashWindowMs = options?.crashWindowMs ?? 60000;
     this.systemPrompt = buildPersistentSystemPrompt(this.workdir);
   }
 
@@ -68,9 +72,9 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
     }
 
     // サーキットブレーカーチェック
-    if (this.crashCount >= PersistentRunner.MAX_CRASHES) {
+    if (this.crashCount >= this.maxCrashes) {
       const elapsed = Date.now() - this.lastCrashTime;
-      if (elapsed < PersistentRunner.CRASH_WINDOW_MS) {
+      if (elapsed < this.crashWindowMs) {
         throw new Error(
           `Circuit breaker open: ${this.crashCount} crashes in ${elapsed}ms. Waiting for cooldown.`
         );
@@ -143,9 +147,7 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
       // クラッシュカウンタを更新
       this.crashCount++;
       this.lastCrashTime = Date.now();
-      console.warn(
-        `[persistent-runner] Crash count: ${this.crashCount}/${PersistentRunner.MAX_CRASHES}`
-      );
+      console.warn(`[persistent-runner] Crash count: ${this.crashCount}/${this.maxCrashes}`);
 
       // 現在処理中のリクエストがあればエラーで終了
       if (this.currentItem) {
@@ -154,10 +156,10 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
       }
 
       // サーキットブレーカーがオープンでなければ再処理
-      if (this.queue.length > 0 && this.crashCount < PersistentRunner.MAX_CRASHES) {
+      if (this.queue.length > 0 && this.crashCount < this.maxCrashes) {
         console.log('[persistent-runner] Restarting process for queued requests...');
         this.processNext();
-      } else if (this.crashCount >= PersistentRunner.MAX_CRASHES) {
+      } else if (this.crashCount >= this.maxCrashes) {
         // サーキットブレーカーオープン: キューを全部エラーにする
         console.error('[persistent-runner] Circuit breaker OPEN. Rejecting all queued requests.');
         for (const item of this.queue) {
@@ -267,7 +269,9 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
       return;
     }
 
-    this.currentItem = this.queue.shift()!;
+    const nextItem = this.queue.shift();
+    if (!nextItem) return;
+    this.currentItem = nextItem;
     this.fullText = '';
 
     const proc = this.ensureProcess();
@@ -464,8 +468,7 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
    */
   getCircuitBreakerStatus(): { open: boolean; crashCount: number; lastCrashTime: number } {
     const open =
-      this.crashCount >= PersistentRunner.MAX_CRASHES &&
-      Date.now() - this.lastCrashTime < PersistentRunner.CRASH_WINDOW_MS;
+      this.crashCount >= this.maxCrashes && Date.now() - this.lastCrashTime < this.crashWindowMs;
     return { open, crashCount: this.crashCount, lastCrashTime: this.lastCrashTime };
   }
 

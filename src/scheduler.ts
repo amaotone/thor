@@ -431,7 +431,7 @@ export function formatScheduleList(
     } else {
       // once (単発)
       return (
-        `**${i + 1}.** ${status} ⏰ ${formatTime(s.runAt!)}${label}\n` +
+        `**${i + 1}.** ${status} ⏰ ${formatTime(s.runAt ?? '')}${label}\n` +
         `└ 📝 ${s.message}\n` +
         `└ 📢 ${channelMention}\n` +
         `└ 🆔 \`${s.id}\``

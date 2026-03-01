@@ -68,7 +68,7 @@ describe('ClaudeCodeRunner args', () => {
     const spawnOptions = callArgs[2] as { cwd?: string };
 
     // プロセスを終了させてクリーンアップ
-    const mockProcess = (getMockProcess as () => any)();
+    const mockProcess = (getMockProcess as () => ReturnType<typeof getMockProcess>)();
     mockProcess.stdout.emit(
       'data',
       JSON.stringify({

@@ -18,7 +18,10 @@ vi.mock('../src/persistent-runner.js', () => {
       return result;
     }
 
-    async runStream(prompt: string, callbacks: { onText?: Function; onComplete?: Function }) {
+    async runStream(
+      prompt: string,
+      callbacks: { onText?: (...args: never) => unknown; onComplete?: (...args: never) => unknown }
+    ) {
       this.currentPrompt = prompt;
       this.busy = true;
       const result = { result: `stream response for: ${prompt}`, sessionId: 'session-123' };

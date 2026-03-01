@@ -8,6 +8,8 @@ const DOWNLOAD_DIR = path.join(
   'attachments'
 );
 
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+
 // ダウンロードディレクトリを作成
 if (!fs.existsSync(DOWNLOAD_DIR)) {
   fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
@@ -21,7 +23,7 @@ export async function downloadFile(
   filename: string,
   authHeader?: Record<string, string>
 ): Promise<string> {
-  const sanitized = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const sanitized = path.basename(filename).replace(/[^a-zA-Z0-9._-]/g, '_');
   const filePath = path.join(DOWNLOAD_DIR, `${Date.now()}_${sanitized}`);
 
   const headers: Record<string, string> = { ...authHeader };
@@ -31,7 +33,19 @@ export async function downloadFile(
     throw new Error(`Failed to download file: ${response.status} ${response.statusText}`);
   }
 
+  const contentLength = response.headers.get('content-length');
+  if (contentLength && Number(contentLength) > MAX_FILE_SIZE) {
+    throw new Error(
+      `File too large: ${Math.round(Number(contentLength) / 1024 / 1024)}MB (max ${MAX_FILE_SIZE / 1024 / 1024}MB)`
+    );
+  }
+
   const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.length > MAX_FILE_SIZE) {
+    throw new Error(
+      `File too large: ${Math.round(buffer.length / 1024 / 1024)}MB (max ${MAX_FILE_SIZE / 1024 / 1024}MB)`
+    );
+  }
   fs.writeFileSync(filePath, buffer);
   console.log(`[thor] Downloaded attachment: ${filename} → ${filePath} (${buffer.length} bytes)`);
   return filePath;

@@ -31,6 +31,8 @@ export interface AgentRunner {
   cancelAll?(channelId?: string): number;
   /** 指定チャンネルのランナーを完全に破棄（/new用） */
   destroy?(channelId: string): boolean;
+  /** シャットダウン */
+  shutdown?(): void;
 }
 
 /**
