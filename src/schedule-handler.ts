@@ -1,5 +1,5 @@
 import type { ChatInputCommandInteraction, Message } from 'discord.js';
-import { DISCORD_MAX_LENGTH, DISCORD_SAFE_LENGTH } from './constants.js';
+import { DISCORD_MAX_LENGTH, DISCORD_SAFE_LENGTH, TIMEZONE } from './constants.js';
 import { isSendableChannel } from './discord-types.js';
 import { splitScheduleContent } from './message-utils.js';
 import {
@@ -23,7 +23,7 @@ export function getTypeLabel(
     case 'startup':
       return `🚀 起動時に実行${channelInfo}`;
     default:
-      return `⏰ 実行時刻: ${new Date(options.runAt ?? '').toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}${channelInfo}`;
+      return `⏰ 実行時刻: ${new Date(options.runAt ?? '').toLocaleString('ja-JP', { timeZone: TIMEZONE })}${channelInfo}`;
   }
 }
 

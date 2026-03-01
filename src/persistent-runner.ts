@@ -3,7 +3,12 @@ import { EventEmitter } from 'node:events';
 import type { AgentRunner, RunOptions, RunResult, StreamCallbacks } from './agent-runner.js';
 import { mergeTexts } from './agent-runner.js';
 import { buildPersistentSystemPrompt } from './base-runner.js';
-import { DEFAULT_TIMEOUT_MS } from './constants.js';
+import {
+  BACKOFF_BASE_MS,
+  BACKOFF_MAX_MS,
+  DEFAULT_TIMEOUT_MS,
+  MAX_BUFFER_SIZE,
+} from './constants.js';
 
 /**
  * リクエストキューのアイテム
@@ -149,10 +154,13 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
         this.currentItem = null;
       }
 
-      // サーキットブレーカーがオープンでなければ再処理
+      // サーキットブレーカーがオープンでなければ指数バックオフ付きで再処理
       if (this.queue.length > 0 && this.crashCount < this.maxCrashes) {
-        console.log('[persistent-runner] Restarting process for queued requests...');
-        this.processNext();
+        const backoffMs = Math.min(BACKOFF_BASE_MS * 2 ** (this.crashCount - 1), BACKOFF_MAX_MS);
+        console.log(
+          `[persistent-runner] Restarting in ${backoffMs}ms (backoff, crash #${this.crashCount})...`
+        );
+        setTimeout(() => this.processNext(), backoffMs);
       } else if (this.crashCount >= this.maxCrashes) {
         // サーキットブレーカーオープン: キューを全部エラーにする
         console.error('[persistent-runner] Circuit breaker OPEN. Rejecting all queued requests.');
@@ -182,6 +190,13 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
    */
   private handleOutput(data: string): void {
     this.buffer += data;
+
+    // バッファサイズ制限: 壊れたJSONが蓄積し続けるのを防止
+    if (this.buffer.length > MAX_BUFFER_SIZE) {
+      console.warn(`[persistent-runner] Buffer exceeded ${MAX_BUFFER_SIZE} bytes, truncating`);
+      this.buffer = this.buffer.slice(-MAX_BUFFER_SIZE);
+    }
+
     const lines = this.buffer.split('\n');
     this.buffer = lines.pop() || '';
 

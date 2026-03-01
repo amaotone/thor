@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "lint-staged": {
-    "src/**/*.ts": [
+    "{src,tests}/**/*.ts": [
       "biome check --write"
     ]
   },

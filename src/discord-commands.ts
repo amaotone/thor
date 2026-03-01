@@ -1,4 +1,5 @@
 import type { Client, Message } from 'discord.js';
+import { TIMEZONE } from './constants.js';
 import { isSendableChannel } from './discord-types.js';
 import { chunkDiscordMessage } from './message-utils.js';
 import { executeScheduleFromResponse } from './schedule-handler.js';
@@ -101,7 +102,7 @@ export async function handleDiscordCommand(
         const messageList = messages
           .reverse()
           .map((m) => {
-            const time = m.createdAt.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+            const time = m.createdAt.toLocaleString('ja-JP', { timeZone: TIMEZONE });
             const content = (m.content || '(添付ファイルのみ)')
               .slice(0, 200)
               .replace(/<#(\d+)>/g, '#$1');

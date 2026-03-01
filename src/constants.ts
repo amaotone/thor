@@ -15,3 +15,13 @@ export const MAX_QUEUE_PER_CHANNEL = 5;
 
 // タイムアウト
 export const DEFAULT_TIMEOUT_MS = 300000; // 5分
+
+// タイムゾーン
+export const TIMEZONE = 'Asia/Tokyo';
+
+// PersistentRunner バッファ
+export const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
+
+// PersistentRunner 指数バックオフ
+export const BACKOFF_BASE_MS = 1000;
+export const BACKOFF_MAX_MS = 30000;

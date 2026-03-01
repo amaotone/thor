@@ -116,7 +116,8 @@ function parseSkillFile(filePath: string, defaultName: string): Skill | null {
       description: description || '(説明なし)',
       path: filePath,
     };
-  } catch {
+  } catch (err) {
+    console.warn(`[skills] Failed to parse skill file: ${filePath}`, err);
     return null;
   }
 }

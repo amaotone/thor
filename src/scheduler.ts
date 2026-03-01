@@ -10,6 +10,8 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import cron from 'node-cron';
+import { z } from 'zod';
+import { TIMEZONE } from './constants.js';
 /** スケジュール一覧の項目間区切り（splitMessage用） */
 export const SCHEDULE_SEPARATOR = '{{SPLIT}}';
 
@@ -38,6 +40,22 @@ export interface Schedule {
 }
 export type SendMessageFn = (channelId: string, message: string) => Promise<void>;
 export type AgentRunFn = (prompt: string, channelId: string) => Promise<string>;
+// ─── Zod Schema ──────────────────────────────────────────────────────
+const ScheduleSchema = z.object({
+  id: z.string(),
+  type: z.enum(['cron', 'once', 'startup']),
+  expression: z.string().optional(),
+  runAt: z.string().optional(),
+  message: z.string(),
+  channelId: z.string(),
+  platform: z.literal('discord'),
+  createdAt: z.string(),
+  enabled: z.boolean(),
+  label: z.string().optional(),
+});
+
+const SchedulesArraySchema = z.array(ScheduleSchema);
+
 // ─── Scheduler ───────────────────────────────────────────────────────
 export class Scheduler {
   private schedules: Schedule[] = [];
@@ -276,7 +294,7 @@ export class Scheduler {
         () => {
           this.executeJob(schedule);
         },
-        { timezone: 'Asia/Tokyo' }
+        { timezone: TIMEZONE }
       );
       this.cronJobs.set(schedule.id, task);
       this.log(
@@ -299,7 +317,7 @@ export class Scheduler {
       this.timers.set(schedule.id, timer);
       const runDate = new Date(schedule.runAt);
       this.log(
-        `[scheduler] Timer set: ${schedule.id} → ${runDate.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })} (${Math.round(delay / 1000)}s)`
+        `[scheduler] Timer set: ${schedule.id} → ${runDate.toLocaleString('ja-JP', { timeZone: TIMEZONE })} (${Math.round(delay / 1000)}s)`
       );
     }
   }
@@ -343,7 +361,14 @@ export class Scheduler {
     try {
       if (existsSync(this.filePath)) {
         const raw = readFileSync(this.filePath, 'utf-8');
-        this.schedules = JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        const result = SchedulesArraySchema.safeParse(parsed);
+        if (result.success) {
+          this.schedules = result.data;
+        } else {
+          console.error('[scheduler] Invalid schedules data, resetting:', result.error.message);
+          this.schedules = [];
+        }
         this.log(`[scheduler] Loaded ${this.schedules.length} schedules from ${this.filePath}`);
       }
     } catch (error) {
@@ -460,7 +485,7 @@ export function formatScheduleList(
 }
 function formatTime(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+  return d.toLocaleString('ja-JP', { timeZone: TIMEZONE });
 }
 /**
  * cron式を人間が読める形式に変換

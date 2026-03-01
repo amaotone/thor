@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { z } from 'zod';
 
 /**
  * セッション管理（チャンネルID → Claude CodeセッションID）
@@ -33,13 +34,21 @@ export function getSessionsPath(): string {
 /**
  * ファイルからセッションを読み込む
  */
+const SessionsSchema = z.record(z.string(), z.string());
+
 function loadSessionsFromFile(): void {
   const path = getSessionsPath();
   try {
     if (existsSync(path)) {
       const raw = readFileSync(path, 'utf-8');
-      const parsed = JSON.parse(raw) as Record<string, string>;
-      sessions = new Map(Object.entries(parsed));
+      const parsed = JSON.parse(raw);
+      const result = SessionsSchema.safeParse(parsed);
+      if (result.success) {
+        sessions = new Map(Object.entries(result.data));
+      } else {
+        console.error('[thor] Invalid sessions data, resetting:', result.error.message);
+        sessions = new Map();
+      }
       console.log(`[thor] Loaded ${sessions.size} sessions from ${path}`);
     }
   } catch (err) {
