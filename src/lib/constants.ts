@@ -10,6 +10,9 @@ export const DISCORD_SAFE_LENGTH = DISCORD_MAX_LENGTH - DISCORD_SPLIT_MARGIN; //
 // ストリーミング
 export const STREAM_UPDATE_INTERVAL_MS = 1000;
 
+// Typing indicator の再送間隔（Discord のtyping表示は10秒で消えるため余裕を持って8秒）
+export const TYPING_INTERVAL_MS = 8000;
+
 // キュー
 export const MAX_QUEUE_PER_CHANNEL = 5;
 

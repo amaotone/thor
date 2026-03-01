@@ -6,6 +6,7 @@ import {
   DISCORD_MAX_LENGTH,
   DISCORD_SAFE_LENGTH,
   STREAM_UPDATE_INTERVAL_MS,
+  TYPING_INTERVAL_MS,
 } from '../lib/constants.js';
 import { formatErrorDetail, toErrorMessage } from '../lib/error-utils.js';
 import { executeCommandsWithFeedback } from '../lib/feedback-loop.js';
@@ -20,32 +21,15 @@ import { isSendableChannel } from './discord-types.js';
 const logger = createLogger('thor');
 
 /**
- * 考え中アニメーションを管理するヘルパー
+ * Typing indicator を定期送信するヘルパー
  */
-function startThinkingAnimation(
-  replyMessage: Message,
-  onFirstText?: () => void
-): { stop: () => void; markFirstText: () => void } {
-  let dotCount = 1;
-  let firstTextReceived = false;
+function startTypingIndicator(channel: { sendTyping: () => Promise<void> }): { stop: () => void } {
+  channel.sendTyping().catch(() => {});
   const interval = setInterval(() => {
-    if (firstTextReceived) return;
-    dotCount = (dotCount % 3) + 1;
-    const dots = '.'.repeat(dotCount);
-    replyMessage.edit(`🤔 考え中${dots}`).catch((e) => {
-      logger.warn('Failed to update thinking:', e.message);
-    });
-  }, 1000);
-
+    channel.sendTyping().catch(() => {});
+  }, TYPING_INTERVAL_MS);
   return {
     stop: () => clearInterval(interval),
-    markFirstText: () => {
-      if (!firstTextReceived) {
-        firstTextReceived = true;
-        clearInterval(interval);
-        onFirstText?.();
-      }
-    },
   };
 }
 
@@ -113,26 +97,43 @@ export async function processPrompt(
       logger.warn('Failed to react:', e.message);
     });
 
-    replyMessage = await message.reply('🤔 考え中.');
+    const typing =
+      'sendTyping' in message.channel ? startTypingIndicator(message.channel) : { stop: () => {} };
 
     let result: string;
-
-    const thinking = startThinkingAnimation(replyMessage);
     let lastUpdateTime = 0;
     let pendingUpdate = false;
+    let replyCreating = false;
+    let replyPromise: Promise<Message> | null = null;
 
     try {
       const streamResult = await agentRunner.runStream(
         prompt,
         {
           onText: (_chunk, fullText) => {
-            thinking.markFirstText();
+            // 初回テキスト到着時にreplyメッセージを作成
+            if (!replyMessage && !replyCreating) {
+              replyCreating = true;
+              typing.stop();
+              replyPromise = message.reply(`${fullText} ▌`.slice(0, DISCORD_MAX_LENGTH));
+              replyPromise
+                .then((msg) => {
+                  replyMessage = msg;
+                  lastUpdateTime = Date.now();
+                })
+                .catch((err) => {
+                  logger.warn('Failed to create reply:', err.message);
+                });
+              return;
+            }
+            if (!replyMessage) return; // reply作成中
+
             const now = Date.now();
             if (now - lastUpdateTime >= STREAM_UPDATE_INTERVAL_MS && !pendingUpdate) {
               pendingUpdate = true;
               lastUpdateTime = now;
               replyMessage
-                ?.edit(`${fullText} ▌`.slice(0, DISCORD_MAX_LENGTH))
+                .edit(`${fullText} ▌`.slice(0, DISCORD_MAX_LENGTH))
                 .catch((err) => {
                   logger.warn('Failed to edit message:', err.message);
                 })
@@ -146,7 +147,20 @@ export async function processPrompt(
       );
       result = streamResult.result;
     } finally {
-      thinking.stop();
+      typing.stop();
+    }
+
+    // replyが作成中ならその完了を待つ（レースコンディション防止）
+    if (!replyMessage && replyPromise) {
+      try {
+        replyMessage = await replyPromise;
+      } catch (err) {
+        logger.warn('Failed to await pending reply:', (err as Error).message);
+      }
+    }
+    // テキストが一度も来なかった場合（空応答）のフォールバック
+    if (!replyMessage) {
+      replyMessage = await message.reply('✅');
     }
 
     logger.info(`Response length: ${result.length}`);
