@@ -1,3 +1,5 @@
+import { homedir } from 'node:os';
+import { resolve } from 'node:path';
 import { z } from 'zod';
 import { DEFAULT_TIMEOUT_MS } from './constants.js';
 
@@ -18,6 +20,13 @@ const ConfigSchema = z.object({
 
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 export type Config = z.infer<typeof ConfigSchema>;
+
+/** Resolve a path: expand leading `~` to home directory, then resolve to absolute */
+export function resolvePath(p: string): string {
+  if (p === '~') return homedir();
+  if (p.startsWith('~/')) return resolve(homedir(), p.slice(2));
+  return resolve(p);
+}
 
 function parseIntEnv(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
@@ -48,7 +57,7 @@ export function loadConfig(): Config {
     agent: {
       model: process.env.AGENT_MODEL || undefined,
       timeoutMs: parseIntEnv(process.env.TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
-      workdir: process.env.WORKSPACE_PATH || './workspace',
+      workdir: process.env.WORKSPACE_PATH ? resolvePath(process.env.WORKSPACE_PATH) : './workspace',
     },
   };
 

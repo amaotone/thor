@@ -1,12 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { resolvePath } from './config.js';
 import { MAX_FILE_SIZE } from './constants.js';
 import { createLogger } from './logger.js';
 
 const logger = createLogger('file-utils');
 
 const DOWNLOAD_DIR = path.join(
-  process.env.WORKSPACE_PATH || './workspace',
+  process.env.WORKSPACE_PATH ? resolvePath(process.env.WORKSPACE_PATH) : './workspace',
   '.thor',
   'media',
   'attachments'

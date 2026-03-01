@@ -10,6 +10,7 @@
  *   schedule-cli toggle <id>
  */
 
+import { resolvePath } from '../lib/config.js';
 import {
   formatScheduleList,
   type Platform,
@@ -19,7 +20,7 @@ import {
 } from './scheduler.js';
 
 const schedulerDataDir = process.env.WORKSPACE_PATH
-  ? `${process.env.WORKSPACE_PATH}/.thor`
+  ? `${resolvePath(process.env.WORKSPACE_PATH)}/.thor`
   : undefined;
 
 function usage(): void {
