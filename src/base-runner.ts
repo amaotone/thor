@@ -40,6 +40,25 @@ AGENTS.md を読み、指示に従うこと（AGENTS.md 等の参照含む）。
 thor専用コマンド（Discord操作・ファイル送信・スケジューラー・チャンネル一覧・タイムアウト対策）は以下を参照。`;
 
 /**
+ * ワークスペースの SOUL.md を読み込む（人格・価値観定義）
+ */
+export function loadSoulMd(workdir?: string): string {
+  if (!workdir) return '';
+
+  const filePath = join(workdir, 'SOUL.md');
+  if (!existsSync(filePath)) return '';
+
+  try {
+    const content = readFileSync(filePath, 'utf-8');
+    console.log(`[base-runner] Loaded SOUL.md (${content.length} bytes)`);
+    return `\n\n## SOUL.md\n\n${content}`;
+  } catch (err) {
+    console.error('[base-runner] Failed to load SOUL.md:', err);
+    return '';
+  }
+}
+
+/**
  * thor自身の prompts/ から THOR_COMMANDS.md を読み込む
  * AGENTS.md等のワークスペース設定は各CLIの自動読み込みに任せる
  */
@@ -66,13 +85,13 @@ export function loadThorCommands(): string {
 /**
  * 完全なシステムプロンプトを生成（resume型ランナー用）
  */
-export function buildSystemPrompt(): string {
-  return CHAT_SYSTEM_PROMPT_RESUME + loadThorCommands();
+export function buildSystemPrompt(workdir?: string): string {
+  return CHAT_SYSTEM_PROMPT_RESUME + loadSoulMd(workdir) + loadThorCommands();
 }
 
 /**
  * 完全なシステムプロンプトを生成（常駐プロセス用）
  */
-export function buildPersistentSystemPrompt(): string {
-  return CHAT_SYSTEM_PROMPT_PERSISTENT + loadThorCommands();
+export function buildPersistentSystemPrompt(workdir?: string): string {
+  return CHAT_SYSTEM_PROMPT_PERSISTENT + loadSoulMd(workdir) + loadThorCommands();
 }

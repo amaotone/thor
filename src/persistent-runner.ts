@@ -56,7 +56,7 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
     this.timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.workdir = options?.workdir;
     this.skipPermissions = options?.skipPermissions ?? false;
-    this.systemPrompt = buildPersistentSystemPrompt();
+    this.systemPrompt = buildPersistentSystemPrompt(this.workdir);
   }
 
   /**
