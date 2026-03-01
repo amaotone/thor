@@ -11,13 +11,14 @@ interface PoolEntry {
 }
 
 /**
- * 複数チャンネル同時処理を実現するランナーマネージャー
+ * 複数チャンネル・複数リクエスト同時処理を実現するランナーマネージャー
  *
- * チャンネルごとに独立した PersistentRunner を管理し、
+ * チャンネルごとに1つ以上の PersistentRunner を管理し、
+ * 全ランナーがビジーなら新しいランナーを生成して並列実行する。
  * LRU eviction とアイドルタイムアウトでリソースを制御する。
  */
 export class RunnerManager implements AgentRunner {
-  private pool = new Map<string, PoolEntry>();
+  private pool = new Map<string, PoolEntry[]>();
   private maxProcesses: number;
   private idleTimeoutMs: number;
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
@@ -48,55 +49,90 @@ export class RunnerManager implements AgentRunner {
   }
 
   /**
-   * チャンネルに対応する PersistentRunner を取得（なければ作成）
+   * プール内の全ランナー数を取得
+   */
+  private getTotalRunnerCount(): number {
+    let total = 0;
+    for (const entries of this.pool.values()) {
+      total += entries.length;
+    }
+    return total;
+  }
+
+  /**
+   * チャンネルに対応する空いている PersistentRunner を取得（なければ作成）
    */
   private getOrCreateRunner(channelId: string): PersistentRunner {
-    const entry = this.pool.get(channelId);
-    if (entry) {
-      entry.lastUsed = Date.now();
-      return entry.runner;
+    const entries = this.pool.get(channelId) ?? [];
+
+    // 空いているランナーを探す
+    for (const entry of entries) {
+      if (!entry.runner.isBusy()) {
+        entry.lastUsed = Date.now();
+        return entry.runner;
+      }
     }
 
-    // 上限チェック → LRU eviction
-    if (this.pool.size >= this.maxProcesses) {
+    // 全ランナーがビジー → 上限チェック → LRU eviction
+    if (this.getTotalRunnerCount() >= this.maxProcesses) {
       this.evictLRU();
     }
 
     // 新しい PersistentRunner を作成
     const runner = new PersistentRunner(this.agentConfig);
-    this.pool.set(channelId, {
-      runner,
-      lastUsed: Date.now(),
-    });
+
+    // 既存ランナーからセッションIDを共有
+    if (entries.length > 0) {
+      const sessionId = entries[0].runner.getSessionId();
+      if (sessionId) {
+        runner.setSessionId(sessionId);
+      }
+    }
+
+    const newEntry: PoolEntry = { runner, lastUsed: Date.now() };
+    if (!this.pool.has(channelId)) {
+      this.pool.set(channelId, [newEntry]);
+    } else {
+      this.pool.get(channelId)!.push(newEntry);
+    }
 
     console.log(
-      `[runner-manager] Created runner for channel ${channelId} (pool: ${this.pool.size}/${this.maxProcesses})`
+      `[runner-manager] Created runner for channel ${channelId} (pool: ${this.getTotalRunnerCount()}/${this.maxProcesses})`
     );
 
     return runner;
   }
 
   /**
-   * 最も古い（LRU）ランナーを evict する
+   * 最も古い（LRU）かつ空いているランナーを evict する
    */
   private evictLRU(): void {
     let oldestChannel: string | null = null;
+    let oldestIndex = -1;
     let oldestTime = Infinity;
 
-    for (const [channelId, entry] of this.pool.entries()) {
-      if (entry.lastUsed < oldestTime) {
-        oldestTime = entry.lastUsed;
-        oldestChannel = channelId;
+    for (const [channelId, entries] of this.pool.entries()) {
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        if (!entry.runner.isBusy() && entry.lastUsed < oldestTime) {
+          oldestTime = entry.lastUsed;
+          oldestChannel = channelId;
+          oldestIndex = i;
+        }
       }
     }
 
-    if (oldestChannel) {
-      const entry = this.pool.get(oldestChannel)!;
+    if (oldestChannel && oldestIndex >= 0) {
+      const entries = this.pool.get(oldestChannel)!;
+      const entry = entries[oldestIndex];
       console.log(
         `[runner-manager] Evicting LRU runner for channel ${oldestChannel} (idle ${Math.round((Date.now() - entry.lastUsed) / 1000)}s)`
       );
       entry.runner.shutdown();
-      this.pool.delete(oldestChannel);
+      entries.splice(oldestIndex, 1);
+      if (entries.length === 0) {
+        this.pool.delete(oldestChannel);
+      }
     }
   }
 
@@ -105,26 +141,35 @@ export class RunnerManager implements AgentRunner {
    */
   private cleanupIdle(): void {
     const now = Date.now();
-    const toRemove: string[] = [];
+    let cleaned = 0;
 
-    for (const [channelId, entry] of this.pool.entries()) {
-      if (now - entry.lastUsed > this.idleTimeoutMs) {
-        toRemove.push(channelId);
+    for (const [channelId, entries] of this.pool.entries()) {
+      const toRemove: number[] = [];
+      for (let i = 0; i < entries.length; i++) {
+        if (!entries[i].runner.isBusy() && now - entries[i].lastUsed > this.idleTimeoutMs) {
+          toRemove.push(i);
+        }
+      }
+
+      // 逆順で削除（インデックスがずれないように）
+      for (let i = toRemove.length - 1; i >= 0; i--) {
+        const idx = toRemove[i];
+        console.log(
+          `[runner-manager] Cleaning up idle runner for channel ${channelId} (idle ${Math.round((now - entries[idx].lastUsed) / 1000)}s)`
+        );
+        entries[idx].runner.shutdown();
+        entries.splice(idx, 1);
+        cleaned++;
+      }
+
+      if (entries.length === 0) {
+        this.pool.delete(channelId);
       }
     }
 
-    for (const channelId of toRemove) {
-      const entry = this.pool.get(channelId)!;
+    if (cleaned > 0) {
       console.log(
-        `[runner-manager] Cleaning up idle runner for channel ${channelId} (idle ${Math.round((now - entry.lastUsed) / 1000)}s)`
-      );
-      entry.runner.shutdown();
-      this.pool.delete(channelId);
-    }
-
-    if (toRemove.length > 0) {
-      console.log(
-        `[runner-manager] Cleaned up ${toRemove.length} idle runner(s) (pool: ${this.pool.size}/${this.maxProcesses})`
+        `[runner-manager] Cleaned up ${cleaned} idle runner(s) (pool: ${this.getTotalRunnerCount()}/${this.maxProcesses})`
       );
     }
   }
@@ -165,17 +210,17 @@ export class RunnerManager implements AgentRunner {
    */
   cancel(channelId?: string): boolean {
     if (channelId) {
-      const entry = this.pool.get(channelId);
-      if (entry) {
-        return entry.runner.cancel();
+      const entries = this.pool.get(channelId) ?? [];
+      for (const entry of entries) {
+        if (entry.runner.cancel()) return true;
       }
       return false;
     }
 
     // channelId 未指定: 全ランナーを試す
-    for (const entry of this.pool.values()) {
-      if (entry.runner.cancel()) {
-        return true;
+    for (const entries of this.pool.values()) {
+      for (const entry of entries) {
+        if (entry.runner.cancel()) return true;
       }
     }
     return false;
@@ -186,14 +231,20 @@ export class RunnerManager implements AgentRunner {
    */
   cancelAll(channelId?: string): number {
     if (channelId) {
-      const entry = this.pool.get(channelId);
-      return entry ? entry.runner.cancelAll() : 0;
+      const entries = this.pool.get(channelId) ?? [];
+      let total = 0;
+      for (const entry of entries) {
+        total += entry.runner.cancelAll();
+      }
+      return total;
     }
 
     // channelId 未指定: 全ランナーをキャンセル
     let total = 0;
-    for (const entry of this.pool.values()) {
-      total += entry.runner.cancelAll();
+    for (const entries of this.pool.values()) {
+      for (const entry of entries) {
+        total += entry.runner.cancelAll();
+      }
     }
     return total;
   }
@@ -202,12 +253,14 @@ export class RunnerManager implements AgentRunner {
    * 指定チャンネルのランナーを完全に破棄（/new用）
    */
   destroy(channelId: string): boolean {
-    const entry = this.pool.get(channelId);
-    if (entry) {
-      entry.runner.shutdown();
+    const entries = this.pool.get(channelId);
+    if (entries) {
+      for (const entry of entries) {
+        entry.runner.shutdown();
+      }
       this.pool.delete(channelId);
       console.log(
-        `[runner-manager] Destroyed runner for channel ${channelId} (pool: ${this.pool.size}/${this.maxProcesses})`
+        `[runner-manager] Destroyed runner for channel ${channelId} (pool: ${this.getTotalRunnerCount()}/${this.maxProcesses})`
       );
       return true;
     }
@@ -223,9 +276,11 @@ export class RunnerManager implements AgentRunner {
       this.cleanupInterval = null;
     }
 
-    for (const [channelId, entry] of this.pool.entries()) {
-      console.log(`[runner-manager] Shutting down runner for channel ${channelId}`);
-      entry.runner.shutdown();
+    for (const [channelId, entries] of this.pool.entries()) {
+      for (const entry of entries) {
+        console.log(`[runner-manager] Shutting down runner for channel ${channelId}`);
+        entry.runner.shutdown();
+      }
     }
     this.pool.clear();
     console.log('[runner-manager] All runners shut down');
@@ -240,14 +295,20 @@ export class RunnerManager implements AgentRunner {
     channels: Array<{ channelId: string; idleSeconds: number; alive: boolean }>;
   } {
     const now = Date.now();
-    const channels = Array.from(this.pool.entries()).map(([channelId, entry]) => ({
-      channelId,
-      idleSeconds: Math.round((now - entry.lastUsed) / 1000),
-      alive: entry.runner.isAlive(),
-    }));
+    const channels: Array<{ channelId: string; idleSeconds: number; alive: boolean }> = [];
+
+    for (const [channelId, entries] of this.pool.entries()) {
+      // 最新の lastUsed を代表値として使用
+      const latestEntry = entries.reduce((a, b) => (a.lastUsed > b.lastUsed ? a : b));
+      channels.push({
+        channelId,
+        idleSeconds: Math.round((now - latestEntry.lastUsed) / 1000),
+        alive: entries.some((e) => e.runner.isAlive()),
+      });
+    }
 
     return {
-      poolSize: this.pool.size,
+      poolSize: this.getTotalRunnerCount(),
       maxProcesses: this.maxProcesses,
       channels,
     };

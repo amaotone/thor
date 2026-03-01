@@ -439,6 +439,13 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
   }
 
   /**
+   * 現在リクエストを処理中かどうか
+   */
+  isBusy(): boolean {
+    return this.currentItem !== null;
+  }
+
+  /**
    * キューの長さ
    */
   getQueueLength(): number {

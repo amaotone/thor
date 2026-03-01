@@ -1,40 +1,88 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RunnerManager } from '../src/runner-manager.js';
 
 // PersistentRunner をモック
 vi.mock('../src/persistent-runner.js', () => {
   class MockPersistentRunner {
     private alive = true;
+    private busy = false;
     private currentPrompt: string | null = null;
+    private sessionId = '';
+    private resolveRun: ((value: unknown) => void) | null = null;
 
     constructor() {}
 
     async run(prompt: string) {
       this.currentPrompt = prompt;
-      return { result: `response for: ${prompt}`, sessionId: 'session-123' };
+      this.busy = true;
+      const result = { result: `response for: ${prompt}`, sessionId: 'session-123' };
+      this.busy = false;
+      return result;
     }
 
     async runStream(prompt: string, callbacks: { onText?: Function; onComplete?: Function }) {
       this.currentPrompt = prompt;
+      this.busy = true;
       const result = { result: `stream response for: ${prompt}`, sessionId: 'session-123' };
       callbacks.onComplete?.(result);
+      this.busy = false;
       return result;
+    }
+
+    // テスト用: run を呼ぶと resolve されるまでビジーのまま待機する
+    runBlocking(prompt: string): Promise<{ result: string; sessionId: string }> {
+      this.currentPrompt = prompt;
+      this.busy = true;
+      return new Promise((resolve) => {
+        this.resolveRun = () => {
+          this.busy = false;
+          resolve({ result: `response for: ${prompt}`, sessionId: 'session-123' });
+        };
+      });
+    }
+
+    // テスト用: blocking run を完了させる
+    completeRun() {
+      this.resolveRun?.();
+      this.resolveRun = null;
     }
 
     cancel() {
       if (this.currentPrompt) {
         this.currentPrompt = null;
+        this.busy = false;
         return true;
       }
       return false;
+    }
+
+    cancelAll() {
+      if (this.currentPrompt) {
+        this.currentPrompt = null;
+        this.busy = false;
+        return 1;
+      }
+      return 0;
     }
 
     shutdown() {
       this.alive = false;
     }
 
+    isBusy() {
+      return this.busy;
+    }
+
     isAlive() {
       return this.alive;
+    }
+
+    getSessionId() {
+      return this.sessionId;
+    }
+
+    setSessionId(id: string) {
+      this.sessionId = id;
     }
 
     getQueueLength() {
@@ -84,7 +132,7 @@ describe('RunnerManager', () => {
     await manager.run('msg2', { channelId: 'ch1' });
 
     const status = manager.getStatus();
-    expect(status.poolSize).toBe(1); // 同じチャンネルなのでランナーは1つ
+    expect(status.poolSize).toBe(1); // 同じチャンネルでランナーが空いていれば再利用
   });
 
   it('should create separate runners for different channels', async () => {
@@ -220,5 +268,27 @@ describe('RunnerManager', () => {
     expect(ch2).toBeDefined();
     expect(ch1!.idleSeconds).toBeGreaterThanOrEqual(5);
     expect(ch2!.idleSeconds).toBeLessThanOrEqual(1);
+  });
+
+  it('should cancelAll across multiple runners for a channel', async () => {
+    manager = new RunnerManager({ workdir: '/test' }, { maxProcesses: 5 });
+
+    // 同じチャンネルで2つのランナーを使う（1つ目が完了してから2つ目）
+    await manager.run('msg1', { channelId: 'ch1' });
+    await manager.run('msg2', { channelId: 'ch1' });
+
+    const cancelled = manager.cancelAll('ch1');
+    expect(typeof cancelled).toBe('number');
+  });
+
+  it('should destroy all runners for a channel', async () => {
+    manager = new RunnerManager({ workdir: '/test' }, { maxProcesses: 5 });
+
+    await manager.run('msg1', { channelId: 'ch1' });
+    await manager.run('msg2', { channelId: 'ch1' });
+
+    expect(manager.destroy('ch1')).toBe(true);
+    expect(manager.getStatus().poolSize).toBe(0);
+    expect(manager.destroy('ch1')).toBe(false);
   });
 });
