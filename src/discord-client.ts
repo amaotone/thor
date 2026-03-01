@@ -13,8 +13,9 @@ import type { AgentRunner } from './agent-runner.js';
 import { loadBeadsContext } from './beads.js';
 import type { Config } from './config.js';
 import { DISCORD_SAFE_LENGTH, MAX_QUEUE_PER_CHANNEL, TIMEZONE } from './constants.js';
-import { handleDiscordCommand, handleDiscordCommandsInResponse } from './discord-commands.js';
+import { handleDiscordCommand } from './discord-commands.js';
 import { isSendableChannel } from './discord-types.js';
+import { executeCommandsWithFeedback } from './feedback-loop.js';
 import {
   buildPromptWithAttachments,
   downloadFile,
@@ -749,32 +750,14 @@ export function registerSchedulerHandlers(
         channelId,
       });
 
-      // AI応答内の !discord コマンドを処理
-      const feedbackResults = await handleDiscordCommandsInResponse(
-        result,
-        client,
-        scheduler,
-        undefined,
-        undefined,
-        channelId
-      );
-
-      // フィードバック結果があればエージェントに再注入
-      if (feedbackResults.length > 0) {
-        const feedbackPrompt = `あなたが実行したコマンドの結果が返ってきました。この情報を踏まえて、元の会話の文脈に沿ってユーザーに返答してください。\n\n${feedbackResults.join('\n\n')}`;
-        schedulerLogger.info(`Re-injecting ${feedbackResults.length} feedback result(s) to agent`);
-        const feedbackRun = await agentRunner.run(feedbackPrompt, {
-          channelId,
-        });
-        await handleDiscordCommandsInResponse(
-          feedbackRun.result,
-          client,
-          scheduler,
-          undefined,
-          undefined,
-          channelId
-        );
-      }
+      // AI応答内の !discord / !schedule コマンドを処理し、フィードバックを再注入
+      await executeCommandsWithFeedback(result, client, scheduler, {
+        fallbackChannelId: channelId,
+        runAgent: async (prompt) => {
+          const run = await agentRunner.run(prompt, { channelId });
+          return run.result;
+        },
+      });
 
       // ファイルパス抽出
       const filePaths = extractFilePaths(result);

@@ -3,8 +3,8 @@ import type { AgentRunner } from './agent-runner.js';
 import { loadBeadsContext } from './beads.js';
 import type { Config } from './config.js';
 import { DISCORD_MAX_LENGTH, DISCORD_SAFE_LENGTH, STREAM_UPDATE_INTERVAL_MS } from './constants.js';
-import { handleDiscordCommandsInResponse } from './discord-commands.js';
 import { isSendableChannel } from './discord-types.js';
+import { executeCommandsWithFeedback } from './feedback-loop.js';
 import { extractFilePaths, stripFilePaths } from './file-utils.js';
 import { createLogger } from './logger.js';
 import { splitMessage } from './message-utils.js';
@@ -242,29 +242,13 @@ export async function handleResponseFeedback(
   client: import('discord.js').Client,
   scheduler: Scheduler
 ): Promise<void> {
-  const feedbackResults = await handleDiscordCommandsInResponse(
-    result,
-    client,
-    scheduler,
-    undefined,
-    message
-  );
-
-  if (feedbackResults.length > 0) {
-    const feedbackPrompt = `あなたが実行したコマンドの結果が返ってきました。この情報を踏まえて、元の会話の文脈に沿ってユーザーに返答してください。\n\n${feedbackResults.join('\n\n')}`;
-    logger.info(`Re-injecting ${feedbackResults.length} feedback result(s) to agent`);
-    const feedbackResult = await processPrompt(
-      message,
-      agentRunner,
-      feedbackPrompt,
-      channelId,
-      config
-    );
-    // 再注入後の応答にもコマンドがあれば処理（ただし再帰は1回のみ）
-    if (feedbackResult) {
-      await handleDiscordCommandsInResponse(feedbackResult, client, scheduler, undefined, message);
-    }
-  }
+  await executeCommandsWithFeedback(result, client, scheduler, {
+    sourceMessage: message,
+    runAgent: async (prompt) => {
+      const feedbackResult = await processPrompt(message, agentRunner, prompt, channelId, config);
+      return feedbackResult ?? '';
+    },
+  });
 }
 
 /**
