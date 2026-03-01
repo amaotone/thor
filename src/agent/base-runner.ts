@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createLogger } from '../lib/logger.js';
@@ -44,22 +44,29 @@ AGENTS.md を読み、指示に従うこと（AGENTS.md 等の参照含む）。
 thor専用コマンド（Discord操作・ファイル送信・スケジューラー・チャンネル一覧・タイムアウト対策）は以下を参照。`;
 
 /**
+ * マークダウンファイルをセクション形式で読み込む共通ヘルパー
+ */
+function loadMdSection(filePath: string, sectionName: string, warnIfMissing = false): string {
+  try {
+    const content = readFileSync(filePath, 'utf-8');
+    logger.info(`Loaded ${sectionName} (${content.length} bytes)`);
+    return `\n\n## ${sectionName}\n\n${content}`;
+  } catch (err) {
+    if (typeof err === 'object' && err !== null && 'code' in err && err.code === 'ENOENT') {
+      if (warnIfMissing) logger.warn(`${sectionName} not found at`, filePath);
+      return '';
+    }
+    logger.error(`Failed to load ${sectionName}:`, err);
+    return '';
+  }
+}
+
+/**
  * ワークスペースの USER.md を読み込む（ユーザー情報・好み）
  */
 export function loadUserMd(workdir?: string): string {
   if (!workdir) return '';
-
-  const filePath = join(workdir, 'USER.md');
-  if (!existsSync(filePath)) return '';
-
-  try {
-    const content = readFileSync(filePath, 'utf-8');
-    logger.info(`Loaded USER.md (${content.length} bytes)`);
-    return `\n\n## USER.md\n\n${content}`;
-  } catch (err) {
-    logger.error('Failed to load USER.md:', err);
-    return '';
-  }
+  return loadMdSection(join(workdir, 'USER.md'), 'USER.md');
 }
 
 /**
@@ -67,42 +74,23 @@ export function loadUserMd(workdir?: string): string {
  */
 export function loadSoulMd(workdir?: string): string {
   if (!workdir) return '';
-
-  const filePath = join(workdir, 'SOUL.md');
-  if (!existsSync(filePath)) return '';
-
-  try {
-    const content = readFileSync(filePath, 'utf-8');
-    logger.info(`Loaded SOUL.md (${content.length} bytes)`);
-    return `\n\n## SOUL.md\n\n${content}`;
-  } catch (err) {
-    logger.error('Failed to load SOUL.md:', err);
-    return '';
-  }
+  return loadMdSection(join(workdir, 'SOUL.md'), 'SOUL.md');
 }
+
+// src/agent/ or dist/agent/ から2つ上がプロジェクトルート
+// THOR_COMMANDS.md は起動後に変わらないためモジュールロード時にキャッシュ
+const _thorCommandsContent = loadMdSection(
+  join(__dirname, '..', '..', 'prompts', 'THOR_COMMANDS.md'),
+  'THOR_COMMANDS.md',
+  true
+);
 
 /**
  * thor自身の prompts/ から THOR_COMMANDS.md を読み込む
  * AGENTS.md等のワークスペース設定は各CLIの自動読み込みに任せる
  */
 export function loadThorCommands(): string {
-  // src/agent/ or dist/agent/ から2つ上がプロジェクトルート
-  const projectRoot = join(__dirname, '..', '..');
-  const filePath = join(projectRoot, 'prompts', 'THOR_COMMANDS.md');
-
-  if (!existsSync(filePath)) {
-    logger.warn('THOR_COMMANDS.md not found at', filePath);
-    return '';
-  }
-
-  try {
-    const content = readFileSync(filePath, 'utf-8');
-    logger.info(`Loaded THOR_COMMANDS.md (${content.length} bytes)`);
-    return `\n\n## THOR_COMMANDS.md\n\n${content}`;
-  } catch (err) {
-    logger.error('Failed to load THOR_COMMANDS.md:', err);
-    return '';
-  }
+  return _thorCommandsContent;
 }
 
 /**

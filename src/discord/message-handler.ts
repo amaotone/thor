@@ -3,6 +3,8 @@ import type { AgentRunner } from '../agent/agent-runner.js';
 import { loadBeadsContext } from '../lib/beads.js';
 import type { Config } from '../lib/config.js';
 import {
+  CANCELLED_ERROR_MESSAGE,
+  CIRCUIT_BREAKER_PREFIX,
   DISCORD_MAX_LENGTH,
   DISCORD_SAFE_LENGTH,
   STREAM_UPDATE_INTERVAL_MS,
@@ -103,7 +105,6 @@ export async function processPrompt(
     let result: string;
     let lastUpdateTime = 0;
     let pendingUpdate = false;
-    let replyCreating = false;
     let replyPromise: Promise<Message> | null = null;
 
     try {
@@ -112,11 +113,11 @@ export async function processPrompt(
         {
           onText: (_chunk, fullText) => {
             // 初回テキスト到着時にreplyメッセージを作成
-            if (!replyMessage && !replyCreating) {
-              replyCreating = true;
+            if (!replyMessage && !replyPromise) {
               typing.stop();
-              replyPromise = message.reply(`${fullText} ▌`.slice(0, DISCORD_MAX_LENGTH));
-              replyPromise
+              const promise = message.reply(`${fullText} ▌`.slice(0, DISCORD_MAX_LENGTH));
+              replyPromise = promise;
+              promise
                 .then((msg) => {
                   replyMessage = msg;
                   lastUpdateTime = Date.now();
@@ -176,7 +177,7 @@ export async function processPrompt(
 
     return result;
   } catch (error) {
-    if (error instanceof Error && error.message === 'Request cancelled by user') {
+    if (error instanceof Error && error.message === CANCELLED_ERROR_MESSAGE) {
       logger.info('Request cancelled by user');
       await replyMessage?.edit('🛑 停止しました').catch((e) => {
         logger.warn('Failed to edit cancel message:', e.message);
@@ -200,7 +201,7 @@ export async function processPrompt(
     }
 
     // エラー後にエージェントへ自動フォローアップ（サーキットブレーカー時は除く）
-    if (!errorMsg.includes('Circuit breaker')) {
+    if (!errorMsg.includes(CIRCUIT_BREAKER_PREFIX)) {
       try {
         logger.info('Sending error follow-up to agent');
         const hasSession = agentRunner.getSessionId?.(channelId);

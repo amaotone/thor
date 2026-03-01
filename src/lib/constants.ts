@@ -46,3 +46,7 @@ export const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 // 履歴デフォルト
 export const HISTORY_DEFAULT_COUNT = 10;
 export const HISTORY_MAX_COUNT = 100;
+
+// エラーメッセージ判定
+export const CANCELLED_ERROR_MESSAGE = 'Request cancelled by user';
+export const CIRCUIT_BREAKER_PREFIX = 'Circuit breaker';
