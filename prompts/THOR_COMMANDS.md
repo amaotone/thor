@@ -1,13 +1,13 @@
-# THOR_COMMANDS.md - thor Dedicated Guide
+# THOR_COMMANDS.md - thor Reference Guide
 
-Dedicated commands, settings, and operational rules for thor.
+Commands, settings, and operational rules specific to thor.
 **Read this at the start of every session.**
 
 ## Discord Operation Commands
 
 **⚠️ `!discord` commands are NOT Bash commands!**
-Write them directly in the response text. Running them with the Bash tool will result in a `command not found` error.
-thor parses text output line by line for processing.
+Write them directly in your response text. Running them with the Bash tool will cause a `command not found` error.
+thor processes text output line by line.
 
 **📏 Formatting Rules (all commands):**
 - **Must be at the start of a line** — Each line is trimmed then checked with `startsWith`, so commands written mid-line won't be recognized
@@ -60,16 +60,16 @@ Get the latest messages from a channel. **Results are returned to your context, 
 !discord history 30 offset:30 <#1466570723639165072>  # Go back in another channel
 ```
 
-**For fetching large amounts of history (timeout prevention):**
-Instead of fetching 100 at once, go back 30 at a time:
+**When fetching large amounts of history (to avoid timeouts):**
+Instead of fetching 100 at once, paginate 30 at a time:
 1. `!discord history 30` → Latest 30 messages
 2. `!discord history 30 offset:30` → Messages 30-60
 3. `!discord history 30 offset:60` → Messages 60-90
 
 **Use cases:**
-- Understand conversation context after a session reset
+- Regain conversation context after a session reset
 - Reference past conversations for decision-making
-- Gradually fetch a full day's conversation for diary creation
+- Incrementally fetch a full day's conversation history for journaling
 
 ### Delete a Message
 
@@ -78,7 +78,7 @@ Instead of fetching 100 at once, go back 30 at a time:
 !discord delete <messageLink>    # Delete message at link (works across channels)
 ```
 
-- Always specify a message ID or link (no argument is not allowed)
+- A message ID or link is required (cannot be called without arguments)
 - Only your own (bot) messages can be deleted (cannot delete others' messages)
 - Message links use the `https://discord.com/channels/...` format
 
@@ -93,7 +93,7 @@ Only check history for the ID when neither a link nor ID is provided, e.g., "del
 
 ## File Sending
 
-To send a file in chat, include a path in the following format in your output (**does NOT need to be at the start of a line**, recognized even mid-text):
+To send a file in chat, include a path in your output using the format below (**does not need to be at the start of a line** — recognized anywhere in the text):
 
 ```
 MEDIA:/path/to/file
@@ -107,14 +107,14 @@ Image generated.
 MEDIA:/tmp/output.png
 ```
 
-Files attached by the user are passed as `[Attached file]` with a path.
-Attachment storage location: `[STATE_DIR]/media/attachments/`
+User-attached files are provided as `[Attached file]` with their path.
+Attachments are stored at: `[STATE_DIR]/media/attachments/`
 
 ---
 
 ## System Commands
 
-Include the following format in your response to operate the system (at the start of a line):
+Include the following in your response to control the system (must be at the start of a line):
 
 - `SYSTEM_COMMAND:restart` — Restart the bot
 
@@ -126,9 +126,9 @@ Slash commands `/restart` and `/settings` are also available.
 
 Use `!schedule` commands to set up reminders and recurring tasks.
 
-### Config File
+### Configuration File
 
-Saved in `.thor/schedules.json`. Can also be edited manually.
+Stored in `.thor/schedules.json`. Can also be edited manually.
 
 ### Commands
 
@@ -139,9 +139,9 @@ Saved in `.thor/schedules.json`. Can also be edited manually.
 !schedule toggle <ID>      # Enable/disable toggle
 ```
 
-### Config Format
+### Schedule Format
 
-- `in 30 minutes meeting` — After N minutes (seconds/hours also supported)
+- `in 30 minutes meeting` — In N minutes (seconds/hours also work)
 - `15:00 review` — At that time today (next day if already past)
 - `2025-03-01 14:00 deadline` — Specific date and time
 - `every day 9:00 good morning` — Daily at a fixed time
@@ -166,17 +166,17 @@ These are handled automatically by thor — no commands needed:
 - `<#channelId>` or `#channelName` → Expands latest 10 messages from that channel
 
 
-## Timeout Countermeasures
+## Handling Timeouts
 
-thor's default timeout is 5 minutes (300000ms).
-For tasks taking more than 5 minutes, run them in the background and immediately respond with "execution started."
+thor's default timeout is 5 minutes (300,000 ms).
+For tasks that take longer than 5 minutes, run them in the background and immediately respond with "execution started."
 
 ### `nohup` vs `run_in_background`
 
-- **`nohup command > log 2>&1 &` (recommended)** — Continues even after the Claude Code process exits. Safe against timeouts and session disconnects
-- **`run_in_background: true`** — Runs within the Claude Code process, so if it's killed at timeout (5 min), the background task dies too
+- **`nohup command > log 2>&1 &` (recommended)** — Survives Claude Code process exit. Safe against timeouts and session disconnects.
+- **`run_in_background: true`** — Runs inside the Claude Code process, so if the process is killed at timeout (5 min), the background task dies with it.
 
-**Conclusion: Use `nohup` for long-running tasks.** `run_in_background` is for short background tasks while the process is alive.
+**Bottom line: Use `nohup` for long-running tasks.** `run_in_background` is only suitable for short background tasks while the process is alive.
 
 ```bash
 # Example for long-running tasks
@@ -184,9 +184,9 @@ nohup long-running-command > /tmp/output.log 2>&1 &
 echo "PID: $!"
 ```
 
-Check results in the next interaction with `tail /tmp/output.log` and report back.
+In the next interaction, check results with `tail /tmp/output.log` and report back.
 
-### Tasks That Must Always Run in Background
+### Tasks That Should Always Run in the Background
 - Transcription
 - Large builds
 - Long downloads

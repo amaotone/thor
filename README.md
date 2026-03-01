@@ -27,20 +27,13 @@ docker compose up thor -d --build
 ## Core Commands
 
 - `/new` Start a new session
-- `/stop` Stop running task
-- `/status` Check execution status
+- `/stop` Stop the running task
+- `/status` Check current status
 - `/settings` Show current settings
 - `/restart` Restart the bot
 - `/schedule` Manage schedules
 - `/skills` List skills
 - `/skill` Execute a skill
-- `/skip` Skip permission confirmation and execute
-
-## Notes
-
-- Designed for single-user use
-- Default working directory is `./workspace`
-- Data is stored in `./workspace/.thor`
 
 ## Inspired by
 

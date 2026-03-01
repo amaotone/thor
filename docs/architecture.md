@@ -16,7 +16,7 @@ User → Discord → thor → AI CLI → Workspace
 |-------|------|----------------|
 | Chat | User interface | Discord.js |
 | thor | AI CLI integration & control | index.ts, agent-runner.ts |
-| AI CLI | Actual AI processing | Claude Code |
+| AI CLI | AI processing | Claude Code |
 | Workspace | Files & skills | skills/, AGENTS.md |
 
 ## Components
@@ -46,10 +46,10 @@ interface AgentRunner {
 
 Manages system prompts that thor injects into the AI CLI:
 
-- **Chat platform info** — Short fixed text indicating the conversation is via Discord
+- **Chat platform info** — Short fixed text indicating that the conversation is happening through Discord
 - **THOR_COMMANDS.md** — Loads Discord operation commands, scheduler specs, etc. from `prompts/THOR_COMMANDS.md`
 
-Workspace settings like AGENTS.md / CHARACTER.md / USER.md are delegated to each AI CLI's auto-loading feature:
+Workspace settings like AGENTS.md / CHARACTER.md / USER.md are handled by each AI CLI's auto-loading feature:
 
 | CLI | Auto-loaded files | Injection method |
 |-----|-------------------|------------------|
@@ -67,7 +67,7 @@ Workspace settings like AGENTS.md / CHARACTER.md / USER.md are delegated to each
 Manages periodic execution and reminders:
 
 - `cron`: Periodic execution via cron expressions
-- `once`: One-shot reminders (execute once at a specified time)
+- `once`: One-shot reminders (fires once at a specified time)
 - Persisted in JSON file (`${THOR_DATA_DIR}/schedules.json`)
 - Watches for file changes and auto-reloads (with debounce)
 - Timezone follows the server's `TZ` environment variable
@@ -76,9 +76,9 @@ Manages periodic execution and reminders:
 
 Loads skills from the `skills/` directory in the workspace and registers them as slash commands.
 
-### Constants Management (constants.ts)
+### Constants (constants.ts)
 
-Centralized management of constant values used throughout the application.
+Centralizes constant values used throughout the application.
 
 ## Data Flows
 
@@ -153,8 +153,8 @@ Detects special commands in AI output and executes them automatically:
 
 ## Environment Variables
 
-See [`.env.example`](../.env.example) for a list of environment variables.
+See [`.env.example`](../.env.example) for the full list of environment variables.
 
 ## Docker
 
-See [`docker-compose.yml`](../docker-compose.yml) and the [Setup Guide](setup.md) for details on the Docker configuration.
+See [`docker-compose.yml`](../docker-compose.yml) and the [Setup Guide](setup.md) for Docker configuration details.

@@ -67,7 +67,7 @@ DISCORD_ALLOWED_USER=YOUR_DISCORD_USER_ID
 
 See [`.env.example`](../.env.example) for all environment variable options.
 
-## 7. Start
+## 7. Launch
 
 ### Docker (Recommended)
 
@@ -109,7 +109,7 @@ bun run build
 bun run start
 ```
 
-## 8. Verify It Works
+## 8. Verify
 
 Mention the bot in your Discord server:
 

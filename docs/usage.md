@@ -10,7 +10,6 @@ A detailed usage guide for thor.
 - [Session Management](#session-management)
 - [Scheduler](#scheduler)
 - [Discord Commands](#discord-commands)
-- [Command Prefixes](#command-prefixes)
 - [Runtime Settings](#runtime-settings)
 - [Autonomous AI Operations](#autonomous-ai-operations)
 
@@ -24,7 +23,7 @@ A detailed usage guide for thor.
 
 ### Dedicated Channels
 
-Channels set in `AUTO_REPLY_CHANNELS` will respond without requiring a mention.
+Channels listed in `AUTO_REPLY_CHANNELS` respond automatically without requiring a mention.
 
 ## Session Management
 
@@ -116,7 +115,7 @@ Schedule data is saved in `${THOR_DATA_DIR}/schedules.json`.
 
 ## Discord Commands
 
-Commands for the AI to perform Discord operations.
+Commands that enable the AI to perform Discord operations.
 
 | Command                                | Description                                                     |
 | -------------------------------------- | --------------------------------------------------------------- |
@@ -126,7 +125,7 @@ Commands for the AI to perform Discord operations.
 | `!discord search keyword`             | Search messages in current channel                              |
 | `!discord delete <messageID>`          | Delete a specific message                                       |
 | `!discord delete <messageLink>`        | Delete message at link (works across channels)                  |
-| `!discord edit <ID/link/last> content` | Edit own message (`last` for the most recent message)           |
+| `!discord edit <ID/link/last> content` | Edit your own message (`last` for the most recent)              |
 
 ### Examples
 
@@ -152,7 +151,7 @@ Commands for the AI to perform Discord operations.
 # Delete by message link (works for other channels too)
 !discord delete https://discord.com/channels/111/222/333
 
-# Edit most recent own message
+# Edit your most recent message
 !discord edit last corrected content
 
 # Edit by message ID
@@ -193,7 +192,7 @@ The AI can edit the `.env` file to change settings:
 
 ### System Commands
 
-Special commands output by the AI:
+Special commands emitted by the AI:
 
 | Command                  | Description      |
 | ------------------------ | ---------------- |
@@ -212,7 +211,7 @@ pm2 logs thor
 
 ### Changing Environment Variables with pm2
 
-thor loads environment variables via bun's automatic `.env` loading. To change environment variables, **edit the `.env` file and then `pm2 restart`**.
+thor loads environment variables through bun's built-in `.env` support. To change them, **edit the `.env` file then run `pm2 restart`**.
 
 ```bash
 # Correct method: edit .env then restart
@@ -221,4 +220,4 @@ pm2 restart thor
 ```
 
 > **⚠️ Do NOT use `pm2 restart --update-env`!**
-> `--update-env` saves all shell environment variables to pm2. If you're running multiple thor instances, tokens like `DISCORD_TOKEN` from other instances may leak in, causing duplicate bot logins with the same token.
+> `--update-env` captures all current shell environment variables into pm2. If you run multiple thor instances, tokens like `DISCORD_TOKEN` from other instances can leak in, causing duplicate bot logins with the same token.

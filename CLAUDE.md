@@ -40,12 +40,12 @@ thor is a wrapper that invokes Claude Code from Discord chat. Designed for singl
 ### Key Data Flows
 
 - `index.ts` receives Discord messages → forwards to AI CLI via `processPrompt()`
-- Detects `!discord` / `!schedule` / `SYSTEM_COMMAND:` in AI output and executes autonomously
-- `persistent-runner.ts` manages Claude Code as a persistent process via `--input-format=stream-json`
-- Scheduler runs periodic tasks via `node-cron` and sends results to channels
+- Detects `!discord` / `!schedule` / `SYSTEM_COMMAND:` in AI output and executes them autonomously
+- `persistent-runner.ts` runs Claude Code as a persistent process using `--input-format=stream-json`
+- Scheduler runs periodic tasks with `node-cron` and sends results to channels
 
 ## System Prompts
 
 - `prompts/THOR_COMMANDS.md` — Command spec injected into AI CLI
 - `AGENTS.md` — Injected via Claude Code's `--append-system-prompt`
-- Auto-loaded files (CLAUDE.md, etc.) are delegated to the CLI's built-in functionality
+- Auto-loaded files (CLAUDE.md, etc.) are handled by the CLI's built-in functionality
