@@ -5,7 +5,7 @@ pre-commit:
     beads:
       run: bd hooks run pre-commit
     lint-staged:
-      run: npx lint-staged
+      run: bun run lint-staged
 
 prepare-commit-msg:
   commands:

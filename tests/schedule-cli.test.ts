@@ -1,14 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { execSync } from 'child_process';
-import { mkdtempSync, rmSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
+import { join } from 'path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const CLI_PATH = join(import.meta.dirname, '..', 'src', 'schedule-cli.ts');
 
 function runCli(args: string, dataDir: string): { stdout: string; exitCode: number } {
   try {
-    const stdout = execSync(`npx tsx ${CLI_PATH} ${args}`, {
+    const stdout = execSync(`bun ${CLI_PATH} ${args}`, {
       env: { ...process.env, THOR_DATA_DIR: dataDir },
       encoding: 'utf-8',
       timeout: 10000,

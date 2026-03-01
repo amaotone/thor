@@ -1,17 +1,17 @@
 # Stage 1: Build
-FROM node:22-slim AS builder
+FROM oven/bun:1-slim AS builder
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm ci
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
 
 COPY tsconfig.json ./
 COPY src/ ./src/
-RUN npm run build
+RUN bun run build
 
 # Stage 2: Production
-FROM node:22-slim
+FROM oven/bun:1-slim
 
 # Install dependencies for Claude Code CLI and GitHub CLI
 RUN apt-get update && apt-get install -y \
@@ -27,26 +27,23 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy package files and install production dependencies
-COPY package*.json ./
-RUN npm ci --omit=dev --ignore-scripts
+COPY package.json bun.lock ./
+RUN bun install --production --frozen-lockfile
 
 # Copy built files from builder stage
 COPY --from=builder /app/dist ./dist
 
-# Install Codex CLI globally (as root)
-RUN npm install -g @openai/codex
+# Create directories for bun user
+RUN mkdir -p /home/bun/.config/gh && chown -R bun:bun /home/bun/.config
 
-# Create directories for node user
-RUN mkdir -p /home/node/.config/gh && chown -R node:node /home/node/.config
+# Switch to bun user for Claude Code CLI installation
+USER bun
 
-# Switch to node user for Claude Code CLI installation
-USER node
-
-# Install Claude Code CLI as node user
+# Install Claude Code CLI as bun user
 RUN curl -fsSL https://claude.ai/install.sh | bash
 
-# Add Claude and Codex to PATH
-ENV PATH="/home/node/.local/bin:${PATH}"
+# Add Claude to PATH
+ENV PATH="/home/bun/.local/bin:${PATH}"
 
 # Default command
-CMD ["node", "dist/index.js"]
+CMD ["bun", "dist/index.js"]

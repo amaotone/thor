@@ -90,19 +90,19 @@ thorの詳細な使い方ガイドです。
 
 ```bash
 # スケジュール追加
-npx tsx src/schedule-cli.ts add --channel <channelId> "毎日 9:00 おはよう"
+bun src/schedule-cli.ts add --channel <channelId> "毎日 9:00 おはよう"
 
 # 一覧表示
-npx tsx src/schedule-cli.ts list
+bun src/schedule-cli.ts list
 
 # 削除（番号指定）
-npx tsx src/schedule-cli.ts remove --channel <channelId> 1
+bun src/schedule-cli.ts remove --channel <channelId> 1
 
 # 複数削除
-npx tsx src/schedule-cli.ts remove --channel <channelId> 1 2 3
+bun src/schedule-cli.ts remove --channel <channelId> 1 2 3
 
 # 有効/無効切り替え
-npx tsx src/schedule-cli.ts toggle --channel <channelId> 1
+bun src/schedule-cli.ts toggle --channel <channelId> 1
 ```
 
 ### データ保存
@@ -227,13 +227,13 @@ AIが出力する特殊コマンド：
 
 ```bash
 # pm2での運用例
-pm2 start "npm start" --name thor
+pm2 start "bun start" --name thor
 pm2 logs thor
 ```
 
 ### pm2で環境変数を変更する場合
 
-thorは `node --env-file=.env` で環境変数を読み込みます。環境変数を変更したい場合は **`.env` ファイルを編集してから `pm2 restart`** してください。
+thorは bun の `.env` 自動読み込みで環境変数を読み込みます。環境変数を変更したい場合は **`.env` ファイルを編集してから `pm2 restart`** してください。
 
 ```bash
 # 正しい方法: .envを編集してrestart
@@ -243,4 +243,3 @@ pm2 restart thor
 
 > **⚠️ `pm2 restart --update-env` は使わないこと！**
 > `--update-env` はシェルの全環境変数をpm2に保存します。複数のthorインスタンスを動かしている場合、別インスタンスの `DISCORD_TOKEN` 等が混入し、同じbotトークンで二重ログインする原因になります。
-> `node --env-file=.env` は既存の環境変数を上書きしないため、pm2が先にセットした値が優先されてしまいます。

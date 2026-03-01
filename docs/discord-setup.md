@@ -69,7 +69,7 @@ DISCORD_ALLOWED_USER=YOUR_DISCORD_USER_ID
 
 ```bash
 # ビルド
-npm run build
+bun run build
 
 # Docker で起動
 docker compose up -d --build
