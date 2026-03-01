@@ -1,13 +1,12 @@
 import type { ChatInputCommandInteraction, Message } from 'discord.js';
-import { DISCORD_MAX_LENGTH, DISCORD_SAFE_LENGTH, TIMEZONE } from './constants.js';
+import { TIMEZONE } from './constants.js';
+import { sendChunkedMessage, sendChunkedReply, sendScheduleContent } from './discord-send.js';
 import { isSendableChannel } from './discord-types.js';
 import { createLogger } from './logger.js';
-import { splitScheduleContent } from './message-utils.js';
 import {
   formatScheduleList,
   type Platform,
   parseScheduleInput,
-  SCHEDULE_SEPARATOR,
   type Scheduler,
   type ScheduleType,
 } from './scheduler.js';
@@ -87,15 +86,7 @@ export async function handleScheduleCommand(
     case 'list': {
       const schedules = scheduler.list();
       const content = formatScheduleList(schedules, schedulerConfig);
-      if (content.length <= DISCORD_MAX_LENGTH) {
-        await interaction.reply(content.replaceAll(SCHEDULE_SEPARATOR, ''));
-      } else {
-        const chunks = splitScheduleContent(content, DISCORD_SAFE_LENGTH);
-        await interaction.reply(chunks[0]);
-        for (let i = 1; i < chunks.length; i++) {
-          await interaction.followUp(chunks[i]);
-        }
-      }
+      await sendScheduleContent(interaction, content, 'interaction');
       return;
     }
 
@@ -135,14 +126,7 @@ export async function handleScheduleMessage(
   if (!args || args === 'list') {
     const schedules = scheduler.list();
     const content = formatScheduleList(schedules, schedulerConfig);
-    if (content.length <= DISCORD_MAX_LENGTH) {
-      await message.reply(content.replaceAll(SCHEDULE_SEPARATOR, ''));
-    } else {
-      const chunks = splitScheduleContent(content, DISCORD_SAFE_LENGTH);
-      for (const chunk of chunks) {
-        await message.reply(chunk);
-      }
-    }
+    await sendChunkedReply(message, content);
     return;
   }
 
@@ -190,14 +174,7 @@ export async function handleScheduleMessage(
       response += `⚠️ エラー: ${errors.join(', ')}\n\n`;
     }
     response += formatScheduleList(remaining, schedulerConfig);
-    if (response.length <= DISCORD_MAX_LENGTH) {
-      await message.reply(response.replaceAll(SCHEDULE_SEPARATOR, ''));
-    } else {
-      const chunks = splitScheduleContent(response, DISCORD_SAFE_LENGTH);
-      for (const chunk of chunks) {
-        await message.reply(chunk);
-      }
-    }
+    await sendChunkedReply(message, response);
     return;
   }
 
@@ -224,11 +201,8 @@ export async function handleScheduleMessage(
     if (schedule) {
       const status = schedule.enabled ? '✅ 有効化' : '⏸️ 無効化';
       const all = scheduler.list(channelId);
-      const listContent = formatScheduleList(all, schedulerConfig).replaceAll(
-        SCHEDULE_SEPARATOR,
-        ''
-      );
-      await message.reply(`${status}しました: ${targetId}\n\n${listContent}`);
+      const listContent = formatScheduleList(all, schedulerConfig);
+      await sendChunkedReply(message, `${status}しました: ${targetId}\n\n${listContent}`);
     } else {
       await message.reply(`❌ ID \`${targetId}\` が見つかりません`);
     }
@@ -293,14 +267,7 @@ export async function executeScheduleFromResponse(
     const schedules = scheduler.list();
     const content = formatScheduleList(schedules, schedulerConfig);
     if (isSendableChannel(channel)) {
-      if (content.length <= DISCORD_MAX_LENGTH) {
-        await channel.send(content.replaceAll(SCHEDULE_SEPARATOR, ''));
-      } else {
-        const chunks = splitScheduleContent(content, DISCORD_SAFE_LENGTH);
-        for (const chunk of chunks) {
-          await channel.send(chunk);
-        }
-      }
+      await sendChunkedMessage(channel, content);
     }
     return;
   }
@@ -334,14 +301,7 @@ export async function executeScheduleFromResponse(
     if (isSendableChannel(channel) && deletedIds.length > 0) {
       const remaining = scheduler.list();
       const content = `✅ ${deletedIds.length}件削除しました\n\n${formatScheduleList(remaining, schedulerConfig)}`;
-      if (content.length <= DISCORD_MAX_LENGTH) {
-        await channel.send(content.replaceAll(SCHEDULE_SEPARATOR, ''));
-      } else {
-        const chunks = splitScheduleContent(content, DISCORD_SAFE_LENGTH);
-        for (const chunk of chunks) {
-          await channel.send(chunk);
-        }
-      }
+      await sendChunkedMessage(channel, content);
     }
     return;
   }
@@ -369,11 +329,8 @@ export async function executeScheduleFromResponse(
       if (schedule) {
         const status = schedule.enabled ? '✅ 有効化' : '⏸️ 無効化';
         const all = scheduler.list(channelId);
-        const listContent = formatScheduleList(all, schedulerConfig).replaceAll(
-          SCHEDULE_SEPARATOR,
-          ''
-        );
-        await channel.send(`${status}しました: ${targetId}\n\n${listContent}`);
+        const listContent = formatScheduleList(all, schedulerConfig);
+        await sendChunkedMessage(channel, `${status}しました: ${targetId}\n\n${listContent}`);
       } else {
         await channel.send(`❌ ID \`${targetId}\` が見つかりません`);
       }
