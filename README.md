@@ -40,6 +40,10 @@ docker compose up thor -d --build
 - デフォルト作業ディレクトリは `./workspace`
 - データ保存先は `./workspace/.thor`
 
+## Inspired by
+
+- [xangi](https://github.com/karaage0703/xangi) by [@karaage0703](https://github.com/karaage0703)
+
 ## License
 
 MIT
