@@ -10,6 +10,7 @@ import {
   SlashCommandBuilder,
 } from 'discord.js';
 import type { AgentRunner } from './agent-runner.js';
+import { loadBeadsContext } from './beads.js';
 import type { Config } from './config.js';
 import { DISCORD_SAFE_LENGTH, MAX_QUEUE_PER_CHANNEL, TIMEZONE } from './constants.js';
 import { handleDiscordCommand, handleDiscordCommandsInResponse } from './discord-commands.js';
@@ -20,6 +21,7 @@ import {
   extractFilePaths,
   stripFilePaths,
 } from './file-utils.js';
+import { createLogger } from './logger.js';
 import { executeSkillCommand, handleResponseFeedback, processPrompt } from './message-handler.js';
 import { extractDiscordSendFromPrompt, splitMessage } from './message-utils.js';
 import { processManager } from './process-manager.js';
@@ -28,6 +30,9 @@ import type { Scheduler } from './scheduler.js';
 import { deleteSession, getSession, setSession } from './sessions.js';
 import { formatSettings, loadSettings } from './settings.js';
 import { formatSkillList, loadSkills, type Skill } from './skills.js';
+
+const logger = createLogger('discord');
+const schedulerLogger = createLogger('scheduler');
 
 /**
  * チャンネルの実行状態をフォーマット
@@ -158,7 +163,7 @@ ${
       }
     }
   } catch (error) {
-    console.error('[thor] Personalize error:', error);
+    logger.error('Personalize error:', error);
     const errorMsg = error instanceof Error ? error.message : String(error);
     await interaction.editReply(`❌ エラー: ${errorMsg.slice(0, 200)}`);
   }
@@ -185,7 +190,7 @@ interface DiscordClientDeps {
  */
 export function setupDiscordClient(deps: DiscordClientDeps): Client {
   const { config, agentRunner, scheduler } = deps;
-  const workdir = config.agent.config.workdir || process.cwd();
+  const workdir = config.agent.workdir;
 
   const client = new Client({
     intents: [
@@ -196,7 +201,7 @@ export function setupDiscordClient(deps: DiscordClientDeps): Client {
   });
 
   let skills: Skill[] = loadSkills(workdir);
-  console.log(`[thor] Loaded ${skills.length} skills from ${workdir}`);
+  logger.info(`Loaded ${skills.length} skills from ${workdir}`);
 
   const processingChannels = new Map<string, number>();
 
@@ -205,16 +210,16 @@ export function setupDiscordClient(deps: DiscordClientDeps): Client {
 
   // ClientReady イベント
   client.once(Events.ClientReady, async (c) => {
-    console.log(`[thor] Ready! Logged in as ${c.user.tag}`);
+    logger.info(`Ready! Logged in as ${c.user.tag}`);
     const rest = new REST().setToken(config.discord.token);
     for (const guild of c.guilds.cache.values()) {
       try {
         await rest.put(Routes.applicationGuildCommands(c.user.id, guild.id), {
           body: commands,
         });
-        console.log(`[thor] Registered ${commands.length} commands for guild: ${guild.name}`);
+        logger.info(`Registered ${commands.length} commands for guild: ${guild.name}`);
       } catch (error) {
-        console.error(`[thor] Failed to register commands for ${guild.name}:`, error);
+        logger.error(`Failed to register commands for ${guild.name}:`, error);
       }
     }
   });
@@ -247,7 +252,7 @@ export function setupDiscordClient(deps: DiscordClientDeps): Client {
 
   // Discord APIエラーでプロセスが落ちないようにハンドリング
   client.on('error', (error) => {
-    console.error('[thor] Discord client error:', error.message);
+    logger.error('Discord client error:', error.message);
   });
 
   // メッセージ処理
@@ -281,7 +286,7 @@ export function setupDiscordClient(deps: DiscordClientDeps): Client {
     }
 
     if (!config.discord.allowedUsers?.includes(message.author.id)) {
-      console.log(`[thor] Unauthorized user: ${message.author.id} (${message.author.tag})`);
+      logger.warn(`Unauthorized user: ${message.author.id} (${message.author.tag})`);
       return;
     }
 
@@ -405,7 +410,7 @@ async function handleSlashCommand(
   channelId: string,
   deps: SlashCommandDeps
 ): Promise<void> {
-  const { agentRunner, scheduler, config, skills, reloadSkills } = deps;
+  const { agentRunner, scheduler, skills, reloadSkills } = deps;
 
   if (interaction.commandName === 'new') {
     deleteSession(channelId);
@@ -461,7 +466,7 @@ async function handleSlashCommand(
   }
 
   if (interaction.commandName === 'schedule') {
-    await handleScheduleCommand(interaction, scheduler, config.scheduler);
+    await handleScheduleCommand(interaction, scheduler, undefined);
     return;
   }
 
@@ -550,7 +555,7 @@ async function handleMessage(message: Message, client: Client, deps: MessageDeps
 
   // !schedule コマンドの処理
   if (prompt.startsWith('!schedule')) {
-    await handleScheduleMessage(message, prompt, scheduler, config.scheduler);
+    await handleScheduleMessage(message, prompt, scheduler, undefined);
     return;
   }
 
@@ -577,7 +582,7 @@ async function handleMessage(message: Message, client: Client, deps: MessageDeps
         const filePath = await downloadFile(attachment.url, attachment.name || 'file');
         attachmentPaths.push(filePath);
       } catch (err) {
-        console.error(`[thor] Failed to download attachment: ${attachment.name}`, err);
+        logger.error(`Failed to download attachment: ${attachment.name}`, err);
       }
     }
   }
@@ -634,10 +639,10 @@ async function fetchDiscordLinkContent(text: string, client: Client): Promise<st
 
         const quotedContent = `\n---\n📎 引用メッセージ (${author}):\n${content}${attachmentInfo}\n---\n`;
         result = result.replace(fullUrl, quotedContent);
-        console.log(`[thor] Fetched linked message from channel ${channelId}`);
+        logger.debug(`Fetched linked message from channel ${channelId}`);
       }
     } catch (err) {
-      console.error(`[thor] Failed to fetch linked message: ${fullUrl}`, err);
+      logger.error(`Failed to fetch linked message: ${fullUrl}`, err);
     }
   }
 
@@ -661,7 +666,7 @@ async function fetchReplyContent(message: Message): Promise<string | null> {
 
     return `---\n📎 返信元 (${author}):\n${content}${attachmentInfo}\n---\n\n`;
   } catch (err) {
-    console.error('[thor] Failed to fetch replied message:', err);
+    logger.error('Failed to fetch replied message:', err);
     return null;
   }
 }
@@ -692,10 +697,10 @@ async function fetchChannelMessages(text: string, client: Client): Promise<strin
 
         const expandedContent = `\n---\n📺 #${channelName} の最新メッセージ:\n${messageList}\n---\n`;
         result = result.replace(fullMention, expandedContent);
-        console.log(`[thor] Fetched messages from channel #${channelName}`);
+        logger.debug(`Fetched messages from channel #${channelName}`);
       }
     } catch (err) {
-      console.error(`[thor] Failed to fetch channel messages: ${channelId}`, err);
+      logger.error(`Failed to fetch channel messages: ${channelId}`, err);
     }
   }
 
@@ -729,15 +734,22 @@ export function registerSchedulerHandlers(
     // プロンプト内の !discord send コマンドを先に直接実行
     const promptCommands = extractDiscordSendFromPrompt(prompt);
     for (const cmd of promptCommands.commands) {
-      console.log(`[scheduler] Executing discord command from prompt: ${cmd.slice(0, 80)}...`);
+      schedulerLogger.info(`Executing discord command from prompt: ${cmd.slice(0, 80)}...`);
       await handleDiscordCommand(cmd, client, undefined, channelId);
     }
 
     // !discord send 以外のテキストが残っていればAIに渡す
-    const remainingPrompt = promptCommands.remaining.trim();
+    let remainingPrompt = promptCommands.remaining.trim();
     if (!remainingPrompt) {
-      console.log('[scheduler] Prompt contained only discord commands, skipping agent');
+      schedulerLogger.info('Prompt contained only discord commands, skipping agent');
       return promptCommands.commands.map((c) => `✅ ${c.slice(0, 50)}`).join('\n');
+    }
+
+    // beads プロジェクト状態をプロンプトに注入
+    const schedWorkdir = config.agent.workdir;
+    const beadsContext = await loadBeadsContext(schedWorkdir);
+    if (beadsContext) {
+      remainingPrompt = `${beadsContext}\n\n${remainingPrompt}`;
     }
 
     // 処理中メッセージを送信
@@ -759,7 +771,7 @@ export function registerSchedulerHandlers(
         result,
         client,
         scheduler,
-        config.scheduler,
+        undefined,
         undefined,
         channelId
       );
@@ -767,9 +779,7 @@ export function registerSchedulerHandlers(
       // フィードバック結果があればエージェントに再注入
       if (feedbackResults.length > 0) {
         const feedbackPrompt = `あなたが実行したコマンドの結果が返ってきました。この情報を踏まえて、元の会話の文脈に沿ってユーザーに返答してください。\n\n${feedbackResults.join('\n\n')}`;
-        console.log(
-          `[scheduler] Re-injecting ${feedbackResults.length} feedback result(s) to agent`
-        );
+        schedulerLogger.info(`Re-injecting ${feedbackResults.length} feedback result(s) to agent`);
         const feedbackSession = getSession(channelId);
         const feedbackRun = await agentRunner.run(feedbackPrompt, {
           sessionId: feedbackSession,
@@ -780,7 +790,7 @@ export function registerSchedulerHandlers(
           feedbackRun.result,
           client,
           scheduler,
-          config.scheduler,
+          undefined,
           undefined,
           channelId
         );

@@ -1,4 +1,3 @@
-import { ClaudeCodeRunner } from './claude-code.js';
 import type { AgentConfig } from './config.js';
 import { RunnerManager } from './runner-manager.js';
 
@@ -38,15 +37,7 @@ export interface AgentRunner {
  * 設定に基づいてAgentRunnerを作成
  */
 export function createAgentRunner(config: AgentConfig): AgentRunner {
-  // persistent モードなら RunnerManager を使用（複数チャンネル同時処理）
-  if (config.persistent) {
-    console.log('[agent-runner] Using RunnerManager (multi-channel high-speed mode)');
-    return new RunnerManager(config, {
-      maxProcesses: config.maxProcesses,
-      idleTimeoutMs: config.idleTimeoutMs,
-    });
-  }
-  return new ClaudeCodeRunner(config);
+  return new RunnerManager(config);
 }
 
 /**
@@ -68,11 +59,4 @@ export function mergeTexts(streamed: string, result: string): string {
 
   // どちらにも含まれない → 区切って結合
   return `${streamed}\n${result}`;
-}
-
-/**
- * バックエンド名を表示用に変換
- */
-export function getBackendDisplayName(): string {
-  return 'Claude Code';
 }

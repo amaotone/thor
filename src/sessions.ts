@@ -1,6 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
+import { createLogger } from './logger.js';
+
+const logger = createLogger('sessions');
 
 /**
  * セッション管理（チャンネルID → Claude CodeセッションID）
@@ -14,7 +17,7 @@ let sessions: SessionMap = new Map();
 
 /**
  * sessions.json のパスを初期化
- * @param dataDir THOR_DATA_DIR または .thor ディレクトリ
+ * @param dataDir .thor ディレクトリ
  */
 export function initSessions(dataDir: string): void {
   sessionsPath = join(dataDir, 'sessions.json');
@@ -46,13 +49,13 @@ function loadSessionsFromFile(): void {
       if (result.success) {
         sessions = new Map(Object.entries(result.data));
       } else {
-        console.error('[thor] Invalid sessions data, resetting:', result.error.message);
+        logger.error('Invalid sessions data, resetting:', result.error.message);
         sessions = new Map();
       }
-      console.log(`[thor] Loaded ${sessions.size} sessions from ${path}`);
+      logger.info(`Loaded ${sessions.size} sessions from ${path}`);
     }
   } catch (err) {
-    console.error('[thor] Failed to load sessions:', err);
+    logger.error('Failed to load sessions:', err);
     sessions = new Map();
   }
 }
@@ -67,7 +70,7 @@ function saveSessionsToFile(): void {
     const obj = Object.fromEntries(sessions);
     writeFileSync(path, `${JSON.stringify(obj, null, 2)}\n`, 'utf-8');
   } catch (err) {
-    console.error('[thor] Failed to save sessions:', err);
+    logger.error('Failed to save sessions:', err);
   }
 }
 

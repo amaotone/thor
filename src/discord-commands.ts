@@ -1,9 +1,12 @@
 import type { Client, Message } from 'discord.js';
 import { TIMEZONE } from './constants.js';
 import { isSendableChannel } from './discord-types.js';
+import { createLogger } from './logger.js';
 import { chunkDiscordMessage } from './message-utils.js';
 import { executeScheduleFromResponse } from './schedule-handler.js';
 import type { Scheduler } from './scheduler.js';
+
+const logger = createLogger('discord');
 
 /**
  * Discordコマンドを処理する関数
@@ -30,11 +33,11 @@ export async function handleDiscordCommand(
           });
         }
         const channelName = 'name' in channel ? channel.name : 'unknown';
-        console.log(`[thor] Sent message to #${channelName} (${chunks.length} chunk(s))`);
+        logger.info(`Sent message to #${channelName} (${chunks.length} chunk(s))`);
         return { handled: true, response: `✅ #${channelName} にメッセージを送信しました` };
       }
     } catch (err) {
-      console.error(`[thor] Failed to send message to channel: ${channelId}`, err);
+      logger.error(`Failed to send message to channel: ${channelId}`, err);
       return { handled: true, response: '❌ チャンネルへの送信に失敗しました' };
     }
   }
@@ -57,7 +60,7 @@ export async function handleDiscordCommand(
         return { handled: true, response: `📺 チャンネル一覧:\n${channels}` };
       }
     } catch (err) {
-      console.error('[thor] Failed to list channels', err);
+      logger.error('Failed to list channels', err);
       return { handled: true, response: '❌ チャンネル一覧の取得に失敗しました' };
     }
   }
@@ -116,8 +119,8 @@ export async function handleDiscordCommand(
 
         const offsetLabel =
           offset > 0 ? `${rangeStart}〜${rangeEnd}件目` : `最新${messages.size}件`;
-        console.log(
-          `[thor] Fetched ${messages.size} history messages from #${channelName} (offset: ${offset})`
+        logger.debug(
+          `Fetched ${messages.size} history messages from #${channelName} (offset: ${offset})`
         );
         return {
           handled: true,
@@ -136,7 +139,7 @@ export async function handleDiscordCommand(
       }
       return { handled: true, feedback: true, response: '❌ チャンネルが見つかりません' };
     } catch (err) {
-      console.error('[thor] Failed to fetch history', err);
+      logger.error('Failed to fetch history', err);
       return { handled: true, feedback: true, response: '❌ 履歴の取得に失敗しました' };
     }
   }
@@ -184,7 +187,7 @@ export async function handleDiscordCommand(
         }
         await msg.delete();
         const deletedChannelId = targetChannelId || sourceMessage?.channel.id || fallbackChannelId;
-        console.log(`[thor] Deleted message ${messageId} in channel ${deletedChannelId}`);
+        logger.info(`Deleted message ${messageId} in channel ${deletedChannelId}`);
         return { handled: true, feedback: true, response: '🗑️ メッセージを削除しました' };
       }
       return {
@@ -193,7 +196,7 @@ export async function handleDiscordCommand(
         response: '❌ このチャンネルではメッセージを削除できません',
       };
     } catch (err) {
-      console.error('[thor] Failed to delete message:', err);
+      logger.error('Failed to delete message:', err);
       return { handled: true, feedback: true, response: '❌ メッセージの削除に失敗しました' };
     }
   }
@@ -262,9 +265,7 @@ export async function handleDiscordCommandsInResponse(
         const fullMessage = bodyLines.join('\n').trim();
         if (fullMessage) {
           const commandText = `!discord send <#${sendMatch[1]}> ${fullMessage}`;
-          console.log(
-            `[thor] Processing discord command from response: ${commandText.slice(0, 50)}...`
-          );
+          logger.debug(`Processing discord command from response: ${commandText.slice(0, 50)}...`);
           const result = await handleDiscordCommand(
             commandText,
             client,
@@ -300,9 +301,7 @@ export async function handleDiscordCommandsInResponse(
         }
         const fullMessage = bodyLines.join('\n').trimEnd();
         const commandText = `!discord send <#${sendMatch[1]}> ${fullMessage}`;
-        console.log(
-          `[thor] Processing discord command from response: ${commandText.slice(0, 50)}...`
-        );
+        logger.debug(`Processing discord command from response: ${commandText.slice(0, 50)}...`);
         const result = await handleDiscordCommand(
           commandText,
           client,
@@ -322,7 +321,7 @@ export async function handleDiscordCommandsInResponse(
 
     // その他の !discord コマンド（channels, history, delete）
     if (trimmed.startsWith('!discord ')) {
-      console.log(`[thor] Processing discord command from response: ${trimmed.slice(0, 50)}...`);
+      logger.debug(`Processing discord command from response: ${trimmed.slice(0, 50)}...`);
       const result = await handleDiscordCommand(trimmed, client, sourceMessage, fallbackChannelId);
       if (result.handled && result.response) {
         if (result.feedback) {
@@ -335,7 +334,7 @@ export async function handleDiscordCommandsInResponse(
 
     // !schedule コマンド（引数なしでもlist表示、sourceMessage必須）
     if (sourceMessage && (trimmed === '!schedule' || trimmed.startsWith('!schedule '))) {
-      console.log(`[thor] Processing schedule command from response: ${trimmed.slice(0, 50)}...`);
+      logger.debug(`Processing schedule command from response: ${trimmed.slice(0, 50)}...`);
       await executeScheduleFromResponse(trimmed, sourceMessage, scheduler, schedulerConfig);
     }
 

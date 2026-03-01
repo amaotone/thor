@@ -1,7 +1,7 @@
 import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
   buildPersistentSystemPrompt,
   buildSystemPrompt,
@@ -34,18 +34,15 @@ describe('loadUserMd', () => {
     expect(result).toBe(`\n\n## USER.md\n\n${content}`);
   });
 
-  it('returns empty string and logs error on read failure', () => {
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  it('returns empty string on read failure', () => {
     const userPath = join(tempDir, 'USER.md');
     writeFileSync(userPath, 'content');
     chmodSync(userPath, 0o000);
 
     const result = loadUserMd(tempDir);
     expect(result).toBe('');
-    expect(spy).toHaveBeenCalledWith('[base-runner] Failed to load USER.md:', expect.any(Error));
 
     chmodSync(userPath, 0o644);
-    vi.restoreAllMocks();
   });
 });
 
@@ -72,18 +69,15 @@ describe('loadSoulMd', () => {
     expect(result).toBe(`\n\n## SOUL.md\n\n${content}`);
   });
 
-  it('returns empty string and logs error on read failure', () => {
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  it('returns empty string on read failure', () => {
     const soulPath = join(tempDir, 'SOUL.md');
     writeFileSync(soulPath, 'content');
     chmodSync(soulPath, 0o000);
 
     const result = loadSoulMd(tempDir);
     expect(result).toBe('');
-    expect(spy).toHaveBeenCalledWith('[base-runner] Failed to load SOUL.md:', expect.any(Error));
 
     chmodSync(soulPath, 0o644);
-    vi.restoreAllMocks();
   });
 });
 

@@ -17,7 +17,7 @@ export const MAX_QUEUE_PER_CHANNEL = 5;
 export const DEFAULT_TIMEOUT_MS = 300000; // 5分
 
 // タイムゾーン
-export const TIMEZONE = 'Asia/Tokyo';
+export const TIMEZONE = process.env.TIMEZONE || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 // PersistentRunner バッファ
 export const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB

@@ -1,14 +1,18 @@
 import type { Message } from 'discord.js';
 import type { AgentRunner } from './agent-runner.js';
+import { loadBeadsContext } from './beads.js';
 import type { Config } from './config.js';
 import { DISCORD_MAX_LENGTH, DISCORD_SAFE_LENGTH, STREAM_UPDATE_INTERVAL_MS } from './constants.js';
 import { handleDiscordCommandsInResponse } from './discord-commands.js';
 import { isSendableChannel } from './discord-types.js';
 import { extractFilePaths, stripFilePaths } from './file-utils.js';
+import { createLogger } from './logger.js';
 import { splitMessage, stripCommandsFromDisplay } from './message-utils.js';
 import type { Scheduler } from './scheduler.js';
 import { getSession, setSession } from './sessions.js';
 import { handleSettingsFromResponse } from './system-commands.js';
+
+const logger = createLogger('thor');
 
 /**
  * 考え中アニメーションを管理するヘルパー
@@ -24,7 +28,7 @@ function startThinkingAnimation(
     dotCount = (dotCount % 3) + 1;
     const dots = '.'.repeat(dotCount);
     replyMessage.edit(`🤔 考え中${dots}`).catch((e) => {
-      console.warn('[thor] Failed to update thinking:', e.message);
+      logger.warn('Failed to update thinking:', e.message);
     });
   }, 1000);
 
@@ -45,7 +49,7 @@ function startThinkingAnimation(
  */
 export function formatErrorDetail(errorMsg: string, config: Config): string {
   if (errorMsg.includes('timed out')) {
-    return `⏱️ タイムアウトしました（${Math.round((config.agent.config.timeoutMs ?? 300000) / 1000)}秒）`;
+    return `⏱️ タイムアウトしました（${Math.round((config.agent.timeoutMs ?? 300000) / 1000)}秒）`;
   }
   if (errorMsg.includes('Process exited unexpectedly')) {
     return `💥 AIプロセスが予期せず終了しました: ${errorMsg}`;
@@ -82,9 +86,9 @@ async function sendResultToDiscord(
       await channel.send({
         files: filePaths.map((fp) => ({ attachment: fp })),
       });
-      console.log(`[thor] Sent ${filePaths.length} file(s) to Discord`);
+      logger.info(`Sent ${filePaths.length} file(s) to Discord`);
     } catch (err) {
-      console.error('[thor] Failed to send files:', err);
+      logger.error('Failed to send files:', err);
     }
   }
 }
@@ -108,69 +112,60 @@ export async function processPrompt(
       prompt = `[チャンネル: #${channelName} (ID: ${channelId})]\n${prompt}`;
     }
 
-    console.log(`[thor] Processing message in channel ${channelId}`);
+    // beads プロジェクト状態をプロンプトに注入
+    const workdir = config.agent.workdir;
+    const beadsContext = await loadBeadsContext(workdir);
+    if (beadsContext) {
+      prompt = `${beadsContext}\n\n${prompt}`;
+    }
+
+    logger.info(`Processing message in channel ${channelId}`);
     await message.react('👀').catch((e) => {
-      console.warn('[thor] Failed to react:', e.message);
+      logger.warn('Failed to react:', e.message);
     });
 
     const sessionId = getSession(channelId);
-    const useStreaming = config.discord.streaming ?? true;
-    const showThinking = config.discord.showThinking ?? true;
 
     replyMessage = await message.reply('🤔 考え中.');
 
     let result: string;
     let newSessionId: string;
 
-    if (useStreaming && showThinking) {
-      const thinking = startThinkingAnimation(replyMessage);
-      let lastUpdateTime = 0;
-      let pendingUpdate = false;
+    const thinking = startThinkingAnimation(replyMessage);
+    let lastUpdateTime = 0;
+    let pendingUpdate = false;
 
-      let streamResult: { result: string; sessionId: string };
-      try {
-        streamResult = await agentRunner.runStream(
-          prompt,
-          {
-            onText: (_chunk, fullText) => {
-              thinking.markFirstText();
-              const now = Date.now();
-              if (now - lastUpdateTime >= STREAM_UPDATE_INTERVAL_MS && !pendingUpdate) {
-                pendingUpdate = true;
-                lastUpdateTime = now;
-                replyMessage
-                  ?.edit(`${fullText} ▌`.slice(0, DISCORD_MAX_LENGTH))
-                  .catch((err) => {
-                    console.error('[thor] Failed to edit message:', err.message);
-                  })
-                  .finally(() => {
-                    pendingUpdate = false;
-                  });
-              }
-            },
+    try {
+      const streamResult = await agentRunner.runStream(
+        prompt,
+        {
+          onText: (_chunk, fullText) => {
+            thinking.markFirstText();
+            const now = Date.now();
+            if (now - lastUpdateTime >= STREAM_UPDATE_INTERVAL_MS && !pendingUpdate) {
+              pendingUpdate = true;
+              lastUpdateTime = now;
+              replyMessage
+                ?.edit(`${fullText} ▌`.slice(0, DISCORD_MAX_LENGTH))
+                .catch((err) => {
+                  logger.warn('Failed to edit message:', err.message);
+                })
+                .finally(() => {
+                  pendingUpdate = false;
+                });
+            }
           },
-          { sessionId, channelId }
-        );
-      } finally {
-        thinking.stop();
-      }
+        },
+        { sessionId, channelId }
+      );
       result = streamResult.result;
       newSessionId = streamResult.sessionId;
-    } else {
-      const thinking = startThinkingAnimation(replyMessage);
-      try {
-        const runResult = await agentRunner.run(prompt, { sessionId, channelId });
-        result = runResult.result;
-        newSessionId = runResult.sessionId;
-      } finally {
-        thinking.stop();
-      }
+    } finally {
+      thinking.stop();
     }
 
     setSession(channelId, newSessionId);
-    console.log(
-      `[thor] Response length: ${result.length}, session: ${newSessionId.slice(0, 8)}...`
-    );
+    logger.info(`Response length: ${result.length}, session: ${newSessionId.slice(0, 8)}...`);
 
     await sendResultToDiscord(
       result,
@@ -184,31 +179,31 @@ export async function processPrompt(
     return result;
   } catch (error) {
     if (error instanceof Error && error.message === 'Request cancelled by user') {
-      console.log('[thor] Request cancelled by user');
+      logger.info('Request cancelled by user');
       await replyMessage?.edit('🛑 停止しました').catch((e) => {
-        console.warn('[thor] Failed to edit cancel message:', e.message);
+        logger.warn('Failed to edit cancel message:', e.message);
       });
       return null;
     }
-    console.error('[thor] Error:', error);
+    logger.error('Error:', error);
 
     const errorMsg = error instanceof Error ? error.message : String(error);
     const errorDetail = formatErrorDetail(errorMsg, config);
 
     if (replyMessage) {
       await replyMessage.edit(errorDetail).catch((e) => {
-        console.warn('[thor] Failed to edit error message:', e.message);
+        logger.warn('Failed to edit error message:', e.message);
       });
     } else {
       await message.reply(errorDetail).catch((e) => {
-        console.warn('[thor] Failed to reply error message:', e.message);
+        logger.warn('Failed to reply error message:', e.message);
       });
     }
 
     // エラー後にエージェントへ自動フォローアップ（サーキットブレーカー時は除く）
     if (!errorMsg.includes('Circuit breaker')) {
       try {
-        console.log('[thor] Sending error follow-up to agent');
+        logger.info('Sending error follow-up to agent');
         const sessionId = getSession(channelId);
         if (sessionId) {
           const followUpPrompt =
@@ -226,7 +221,7 @@ export async function processPrompt(
           }
         }
       } catch (followUpError) {
-        console.error('[thor] Error follow-up failed:', followUpError);
+        logger.error('Error follow-up failed:', followUpError);
       }
     }
 
@@ -237,7 +232,7 @@ export async function processPrompt(
       .find((r) => r.emoji.name === '👀')
       ?.users.remove(message.client.user?.id)
       .catch((err) => {
-        console.error('[thor] Failed to remove 👀 reaction:', err.message || err);
+        logger.warn('Failed to remove reaction:', err.message || err);
       });
   }
 }
@@ -258,13 +253,13 @@ export async function handleResponseFeedback(
     result,
     client,
     scheduler,
-    config.scheduler,
+    undefined,
     message
   );
 
   if (feedbackResults.length > 0) {
     const feedbackPrompt = `あなたが実行したコマンドの結果が返ってきました。この情報を踏まえて、元の会話の文脈に沿ってユーザーに返答してください。\n\n${feedbackResults.join('\n\n')}`;
-    console.log(`[thor] Re-injecting ${feedbackResults.length} feedback result(s) to agent`);
+    logger.info(`Re-injecting ${feedbackResults.length} feedback result(s) to agent`);
     const feedbackResult = await processPrompt(
       message,
       agentRunner,
@@ -274,13 +269,7 @@ export async function handleResponseFeedback(
     );
     // 再注入後の応答にもコマンドがあれば処理（ただし再帰は1回のみ）
     if (feedbackResult) {
-      await handleDiscordCommandsInResponse(
-        feedbackResult,
-        client,
-        scheduler,
-        config.scheduler,
-        message
-      );
+      await handleDiscordCommandsInResponse(feedbackResult, client, scheduler, undefined, message);
     }
   }
 }
@@ -312,7 +301,7 @@ export async function executeSkillCommand(
       await interaction.followUp(chunks[i]);
     }
   } catch (error) {
-    console.error('[thor] Error:', error);
+    logger.error('Error:', error);
     await interaction.editReply('エラーが発生しました');
   }
 }

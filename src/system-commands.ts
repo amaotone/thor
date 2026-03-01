@@ -1,4 +1,7 @@
+import { createLogger } from './logger.js';
 import { loadSettings } from './settings.js';
+
+const logger = createLogger('system-commands');
 
 /**
  * AIの応答から SYSTEM_COMMAND: を検知して実行
@@ -14,10 +17,10 @@ export function handleSettingsFromResponse(text: string): void {
     if (action === 'restart') {
       const settings = loadSettings();
       if (!settings.autoRestart) {
-        console.log('[thor] Restart requested but autoRestart is disabled');
+        logger.info('Restart requested but autoRestart is disabled');
         continue;
       }
-      console.log('[thor] Restart requested by agent, restarting in 1s...');
+      logger.info('Restart requested by agent, restarting in 1s...');
       setTimeout(() => process.exit(0), 1000);
       return;
     }

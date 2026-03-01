@@ -18,11 +18,9 @@ import {
   Scheduler,
 } from './scheduler.js';
 
-const schedulerDataDir = process.env.THOR_DATA_DIR || undefined;
-const schedulerConfig = {
-  enabled: process.env.SCHEDULER_ENABLED !== 'false',
-  startupEnabled: process.env.STARTUP_ENABLED !== 'false',
-};
+const schedulerDataDir = process.env.WORKSPACE_PATH
+  ? `${process.env.WORKSPACE_PATH}/.thor`
+  : undefined;
 
 function usage(): void {
   console.log(`スケジューラCLI
@@ -40,9 +38,6 @@ Usage:
   "15:00 レビュー"
   "毎日 9:00 おはよう"
   "毎週月曜 10:00 週次MTG"
-
-環境変数:
-  THOR_DATA_DIR  データディレクトリ（default: ./.thor）
 `);
 }
 
@@ -183,9 +178,7 @@ function main(): void {
       if (args.json === 'true') {
         console.log(JSON.stringify({ ok: true, schedules }, null, 2));
       } else {
-        console.log(
-          formatScheduleList(schedules, schedulerConfig).replaceAll(SCHEDULE_SEPARATOR, '')
-        );
+        console.log(formatScheduleList(schedules, undefined).replaceAll(SCHEDULE_SEPARATOR, ''));
       }
       break;
     }
@@ -240,9 +233,7 @@ function main(): void {
       // 削除成功後、残りのスケジュール一覧を表示
       const remaining = scheduler.list(channel, platform);
       console.log(`✅ ${deletedIds.length}件削除しました\n`);
-      console.log(
-        formatScheduleList(remaining, schedulerConfig).replaceAll(SCHEDULE_SEPARATOR, '')
-      );
+      console.log(formatScheduleList(remaining, undefined).replaceAll(SCHEDULE_SEPARATOR, ''));
       break;
     }
 
@@ -287,7 +278,7 @@ function main(): void {
       const channel = args.channel;
       const platform = args.platform as Platform | undefined;
       const all = scheduler.list(channel, platform);
-      console.log(formatScheduleList(all, schedulerConfig).replaceAll(SCHEDULE_SEPARATOR, ''));
+      console.log(formatScheduleList(all, undefined).replaceAll(SCHEDULE_SEPARATOR, ''));
       break;
     }
 

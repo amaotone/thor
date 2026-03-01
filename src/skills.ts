@@ -1,6 +1,9 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { DISCORD_SAFE_LENGTH } from './constants.js';
+import { createLogger } from './logger.js';
+
+const logger = createLogger('skills');
 
 export interface Skill {
   name: string;
@@ -70,7 +73,7 @@ function loadSkillsFromDir(skillsDir: string): Skill[] {
       }
     }
   } catch (err) {
-    console.error('[skills] Failed to load skills:', err);
+    logger.error('Failed to load skills:', err);
   }
 
   return skills;
@@ -117,7 +120,7 @@ function parseSkillFile(filePath: string, defaultName: string): Skill | null {
       path: filePath,
     };
   } catch (err) {
-    console.warn(`[skills] Failed to parse skill file: ${filePath}`, err);
+    logger.warn(`Failed to parse skill file: ${filePath}`, err);
     return null;
   }
 }

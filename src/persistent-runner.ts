@@ -9,6 +9,9 @@ import {
   DEFAULT_TIMEOUT_MS,
   MAX_BUFFER_SIZE,
 } from './constants.js';
+import { createLogger } from './logger.js';
+
+const logger = createLogger('persistent-runner');
 
 /**
  * リクエストキューのアイテム
@@ -82,7 +85,7 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
         );
       }
       // クールダウン経過後はリセット
-      console.log('[persistent-runner] Circuit breaker reset after cooldown');
+      logger.info('Circuit breaker reset after cooldown');
       this.crashCount = 0;
     }
 
@@ -104,12 +107,12 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
     const resumeId = this.resumeSessionId || this.sessionId;
     if (resumeId) {
       args.push('--resume', resumeId);
-      console.log(`[persistent-runner] Resuming session: ${resumeId.slice(0, 8)}...`);
+      logger.info(`Resuming session: ${resumeId.slice(0, 8)}...`);
     }
 
     args.push('--append-system-prompt', this.systemPrompt);
 
-    console.log('[persistent-runner] Starting persistent process...');
+    logger.info('Starting persistent process...');
 
     this.process = spawn('claude', args, {
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -120,11 +123,11 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
 
     this.process.stdout?.on('data', (data) => this.handleOutput(data.toString()));
     this.process.stderr?.on('data', (data) => {
-      console.error('[persistent-runner] stderr:', data.toString());
+      logger.debug('stderr:', data.toString());
     });
 
     this.process.on('close', (code) => {
-      console.log(`[persistent-runner] Process exited with code ${code}`);
+      logger.info(`Process exited with code ${code}`);
       const wasShuttingDown = this.shuttingDown;
       this.process = null;
       this.processAlive = false;
@@ -146,7 +149,7 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
       // クラッシュカウンタを更新
       this.crashCount++;
       this.lastCrashTime = Date.now();
-      console.warn(`[persistent-runner] Crash count: ${this.crashCount}/${this.maxCrashes}`);
+      logger.warn(`Crash count: ${this.crashCount}/${this.maxCrashes}`);
 
       // 現在処理中のリクエストがあればエラーで終了
       if (this.currentItem) {
@@ -157,13 +160,11 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
       // サーキットブレーカーがオープンでなければ指数バックオフ付きで再処理
       if (this.queue.length > 0 && this.crashCount < this.maxCrashes) {
         const backoffMs = Math.min(BACKOFF_BASE_MS * 2 ** (this.crashCount - 1), BACKOFF_MAX_MS);
-        console.log(
-          `[persistent-runner] Restarting in ${backoffMs}ms (backoff, crash #${this.crashCount})...`
-        );
+        logger.info(`Restarting in ${backoffMs}ms (backoff, crash #${this.crashCount})...`);
         setTimeout(() => this.processNext(), backoffMs);
       } else if (this.crashCount >= this.maxCrashes) {
         // サーキットブレーカーオープン: キューを全部エラーにする
-        console.error('[persistent-runner] Circuit breaker OPEN. Rejecting all queued requests.');
+        logger.error('Circuit breaker OPEN. Rejecting all queued requests.');
         for (const item of this.queue) {
           item.reject(new Error('Circuit breaker open: too many process crashes'));
         }
@@ -172,7 +173,7 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
     });
 
     this.process.on('error', (err) => {
-      console.error('[persistent-runner] Process error:', err);
+      logger.error('Process error:', err);
       this.process = null;
       this.processAlive = false;
 
@@ -193,7 +194,7 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
 
     // バッファサイズ制限: 壊れたJSONが蓄積し続けるのを防止
     if (this.buffer.length > MAX_BUFFER_SIZE) {
-      console.warn(`[persistent-runner] Buffer exceeded ${MAX_BUFFER_SIZE} bytes, truncating`);
+      logger.warn(`Buffer exceeded ${MAX_BUFFER_SIZE} bytes, truncating`);
       this.buffer = this.buffer.slice(-MAX_BUFFER_SIZE);
     }
 
@@ -206,9 +207,9 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
       try {
         const json = JSON.parse(line);
         this.handleJsonMessage(json);
-      } catch (e) {
+      } catch {
         // 予期しないCLI出力をログ（デバッグ用）
-        console.warn('[persistent-runner] Failed to parse JSON line:', line.slice(0, 100), e);
+        logger.debug('Failed to parse JSON line:', line.slice(0, 100));
       }
     }
   }
@@ -225,7 +226,7 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
   }): void {
     if (json.type === 'system' && json.session_id) {
       this.sessionId = json.session_id;
-      console.log(`[persistent-runner] Session initialized: ${this.sessionId.slice(0, 8)}...`);
+      logger.info(`Session initialized: ${this.sessionId.slice(0, 8)}...`);
     }
 
     if (json.type === 'assistant' && json.message?.content) {
@@ -294,15 +295,13 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
       },
     };
 
-    console.log(`[persistent-runner] Sending request (queue: ${this.queue.length} remaining)`);
+    logger.debug(`Sending request (queue: ${this.queue.length} remaining)`);
     proc.stdin?.write(`${JSON.stringify(message)}\n`);
 
     // タイムアウト設定: タイムアウト時はプロセスをkillして状態をクリーンに
     const timeout = setTimeout(() => {
       if (this.currentItem) {
-        console.warn(
-          `[persistent-runner] Request timed out after ${this.timeoutMs}ms. Killing process.`
-        );
+        logger.warn(`Request timed out after ${this.timeoutMs}ms. Killing process.`);
         const error = new Error(`Request timed out after ${this.timeoutMs}ms`);
         this.currentItem.callbacks?.onError?.(error);
         this.currentItem.reject(error);
@@ -369,7 +368,7 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
       return false;
     }
 
-    console.log('[persistent-runner] Cancelling current request');
+    logger.info('Cancelling current request');
     const error = new Error('Request cancelled by user');
     this.currentItem.callbacks?.onError?.(error);
     this.currentItem.reject(error);
@@ -413,7 +412,7 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
    */
   shutdown(): void {
     if (this.process) {
-      console.log('[persistent-runner] Shutting down persistent process...');
+      logger.info('Shutting down persistent process...');
       this.shuttingDown = true;
       this.process.stdin?.end();
       this.process.kill();
@@ -487,6 +486,6 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
   resetCircuitBreaker(): void {
     this.crashCount = 0;
     this.lastCrashTime = 0;
-    console.log('[persistent-runner] Circuit breaker manually reset');
+    logger.info('Circuit breaker manually reset');
   }
 }

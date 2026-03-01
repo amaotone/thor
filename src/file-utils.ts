@@ -1,9 +1,12 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
+import { createLogger } from './logger.js';
+
+const logger = createLogger('file-utils');
 
 const DOWNLOAD_DIR = path.join(
-  process.env.THOR_DATA_DIR || path.join(os.homedir(), '.thor'),
+  process.env.WORKSPACE_PATH || './workspace',
+  '.thor',
   'media',
   'attachments'
 );
@@ -47,7 +50,7 @@ export async function downloadFile(
     );
   }
   fs.writeFileSync(filePath, buffer);
-  console.log(`[thor] Downloaded attachment: ${filename} → ${filePath} (${buffer.length} bytes)`);
+  logger.info(`Downloaded attachment: ${filename} → ${filePath} (${buffer.length} bytes)`);
   return filePath;
 }
 

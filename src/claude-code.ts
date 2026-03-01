@@ -3,7 +3,10 @@ import type { RunOptions, RunResult, StreamCallbacks } from './agent-runner.js';
 import { mergeTexts } from './agent-runner.js';
 import { buildSystemPrompt } from './base-runner.js';
 import { DEFAULT_TIMEOUT_MS } from './constants.js';
+import { createLogger } from './logger.js';
 import { processManager } from './process-manager.js';
+
+const logger = createLogger('claude-code');
 
 export interface ClaudeCodeOptions {
   model?: string;
@@ -57,7 +60,7 @@ export class ClaudeCodeRunner {
     const sessionInfo = options?.sessionId
       ? ` (session: ${options.sessionId.slice(0, 8)}...)`
       : ' (new)';
-    console.log(`[claude-code] Executing in ${this.workdir || 'default dir'}${sessionInfo}`);
+    logger.info(`Executing in ${this.workdir || 'default dir'}${sessionInfo}`);
 
     const result = await this.execute(args, options?.channelId);
     const response = this.parseResponse(result);
@@ -164,7 +167,7 @@ export class ClaudeCodeRunner {
     const sessionInfo = options?.sessionId
       ? ` (session: ${options.sessionId.slice(0, 8)}...)`
       : ' (new)';
-    console.log(`[claude-code] Streaming in ${this.workdir || 'default dir'}${sessionInfo}`);
+    logger.info(`Streaming in ${this.workdir || 'default dir'}${sessionInfo}`);
 
     return this.executeStream(args, callbacks, options?.channelId);
   }
@@ -227,7 +230,7 @@ export class ClaudeCodeRunner {
       });
 
       proc.stderr.on('data', (data) => {
-        console.error('[claude-code] stderr:', data.toString());
+        logger.debug('stderr:', data.toString());
       });
 
       const timeout = setTimeout(() => {

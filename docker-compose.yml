@@ -23,6 +23,8 @@ x-common: &common
     - AGENT_MODEL=${AGENT_MODEL:-}
     # Scheduler data directory (for schedules.json)
     - DATA_DIR=/workspace/.thor
+    - LOG_LEVEL=${LOG_LEVEL:-info}
+    - TIMEZONE=${TIMEZONE:-Asia/Tokyo}
 
 services:
   # ミニマム版（デフォルト）

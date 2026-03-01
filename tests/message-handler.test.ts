@@ -2,29 +2,17 @@ import { describe, expect, it } from 'vitest';
 import type { Config } from '../src/config.js';
 import { formatErrorDetail } from '../src/message-handler.js';
 
-function makeConfig(overrides?: Partial<Config['agent']['config']>): Config {
+function makeConfig(overrides?: Partial<Config['agent']>): Config {
   return {
     discord: {
-      enabled: true,
       token: 'test-token',
       allowedUsers: ['user1'],
       autoReplyChannels: [],
-      streaming: true,
-      showThinking: true,
     },
     agent: {
-      backend: 'claude-code',
-      config: {
-        timeoutMs: 300000,
-        persistent: true,
-        maxProcesses: 10,
-        idleTimeoutMs: 1800000,
-        ...overrides,
-      },
-    },
-    scheduler: {
-      enabled: true,
-      startupEnabled: true,
+      timeoutMs: 300000,
+      workdir: './workspace',
+      ...overrides,
     },
   };
 }

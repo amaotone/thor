@@ -1,6 +1,9 @@
 import type { AgentRunner, RunOptions, RunResult, StreamCallbacks } from './agent-runner.js';
 import type { AgentConfig } from './config.js';
+import { createLogger } from './logger.js';
 import { PersistentRunner } from './persistent-runner.js';
+
+const logger = createLogger('runner-manager');
 
 /**
  * プール内のランナー情報
@@ -42,8 +45,8 @@ export class RunnerManager implements AgentRunner {
     // 定期クリーンアップ開始
     this.cleanupInterval = setInterval(() => this.cleanupIdle(), RunnerManager.CLEANUP_INTERVAL_MS);
 
-    console.log(
-      `[runner-manager] Initialized (maxProcesses: ${this.maxProcesses}, idleTimeout: ${this.idleTimeoutMs / 1000}s)`
+    logger.info(
+      `Initialized (maxProcesses: ${this.maxProcesses}, idleTimeout: ${this.idleTimeoutMs / 1000}s)`
     );
   }
 
@@ -66,8 +69,8 @@ export class RunnerManager implements AgentRunner {
     const runner = new PersistentRunner(this.agentConfig);
     this.pool.set(channelId, { runner, lastUsed: Date.now() });
 
-    console.log(
-      `[runner-manager] Created runner for channel ${channelId} (pool: ${this.pool.size}/${this.maxProcesses})`
+    logger.debug(
+      `Created runner for channel ${channelId} (pool: ${this.pool.size}/${this.maxProcesses})`
     );
 
     return runner;
@@ -90,8 +93,8 @@ export class RunnerManager implements AgentRunner {
     if (oldestChannel) {
       const entry = this.pool.get(oldestChannel);
       if (entry) {
-        console.log(
-          `[runner-manager] Evicting LRU runner for channel ${oldestChannel} (idle ${Math.round((Date.now() - entry.lastUsed) / 1000)}s)`
+        logger.debug(
+          `Evicting LRU runner for channel ${oldestChannel} (idle ${Math.round((Date.now() - entry.lastUsed) / 1000)}s)`
         );
         entry.runner.shutdown();
         this.pool.delete(oldestChannel);
@@ -108,8 +111,8 @@ export class RunnerManager implements AgentRunner {
 
     for (const [channelId, entry] of this.pool.entries()) {
       if (!entry.runner.isBusy() && now - entry.lastUsed > this.idleTimeoutMs) {
-        console.log(
-          `[runner-manager] Cleaning up idle runner for channel ${channelId} (idle ${Math.round((now - entry.lastUsed) / 1000)}s)`
+        logger.debug(
+          `Cleaning up idle runner for channel ${channelId} (idle ${Math.round((now - entry.lastUsed) / 1000)}s)`
         );
         entry.runner.shutdown();
         this.pool.delete(channelId);
@@ -118,8 +121,8 @@ export class RunnerManager implements AgentRunner {
     }
 
     if (cleaned > 0) {
-      console.log(
-        `[runner-manager] Cleaned up ${cleaned} idle runner(s) (pool: ${this.pool.size}/${this.maxProcesses})`
+      logger.debug(
+        `Cleaned up ${cleaned} idle runner(s) (pool: ${this.pool.size}/${this.maxProcesses})`
       );
     }
   }
@@ -196,8 +199,8 @@ export class RunnerManager implements AgentRunner {
     if (entry) {
       entry.runner.shutdown();
       this.pool.delete(channelId);
-      console.log(
-        `[runner-manager] Destroyed runner for channel ${channelId} (pool: ${this.pool.size}/${this.maxProcesses})`
+      logger.debug(
+        `Destroyed runner for channel ${channelId} (pool: ${this.pool.size}/${this.maxProcesses})`
       );
       return true;
     }
@@ -214,11 +217,11 @@ export class RunnerManager implements AgentRunner {
     }
 
     for (const [channelId, entry] of this.pool.entries()) {
-      console.log(`[runner-manager] Shutting down runner for channel ${channelId}`);
+      logger.info(`Shutting down runner for channel ${channelId}`);
       entry.runner.shutdown();
     }
     this.pool.clear();
-    console.log('[runner-manager] All runners shut down');
+    logger.info('All runners shut down');
   }
 
   /**

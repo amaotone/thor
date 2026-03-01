@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path';
 import cron from 'node-cron';
 import { z } from 'zod';
 import { TIMEZONE } from './constants.js';
+import { createLogger } from './logger.js';
 /** スケジュール一覧の項目間区切り（splitMessage用） */
 export const SCHEDULE_SEPARATOR = '{{SPLIT}}';
 
@@ -67,21 +68,18 @@ export class Scheduler {
   private watching = false;
   private lastSaveTime = 0;
   private lastReloadTime = 0;
-  private quiet: boolean;
+  private logger = createLogger('scheduler');
   private disabled = false;
   constructor(dataDir?: string, options?: { quiet?: boolean }) {
-    this.quiet = options?.quiet ?? false;
+    if (options?.quiet) {
+      this.logger.level = 0;
+    }
     const dir = dataDir || join(process.cwd(), '.thor');
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
     this.filePath = join(dir, 'schedules.json');
     this.load();
-  }
-  private log(message: string): void {
-    if (!this.quiet) {
-      console.log(message);
-    }
   }
   // ─── Sender Registration ──────────────────────────────────────────
   /**
@@ -195,7 +193,7 @@ export class Scheduler {
 
     if (!schedulerEnabled) {
       this.disabled = true;
-      this.log('[scheduler] Scheduler is disabled (SCHEDULER_ENABLED=false), skipping all jobs');
+      this.logger.info('Scheduler is disabled, skipping all jobs');
       this.startWatching();
       return;
     }
@@ -212,18 +210,18 @@ export class Scheduler {
     }
     this.startWatching();
     const regularJobs = this.schedules.filter((s) => s.enabled && s.type !== 'startup').length;
-    this.log(`[scheduler] Started ${regularJobs} jobs, ${startupTasks.length} startup tasks`);
+    this.logger.info(`Started ${regularJobs} jobs, ${startupTasks.length} startup tasks`);
 
     if (!startupEnabled) {
-      this.log('[scheduler] Startup tasks disabled (STARTUP_ENABLED=false), skipping');
+      this.logger.info('Startup tasks disabled, skipping');
       return;
     }
 
     // Execute startup tasks
     for (const task of startupTasks) {
-      this.log(`[scheduler] Executing startup task: ${task.id}`);
+      this.logger.info(`Executing startup task: ${task.id}`);
       this.executeJob(task).catch((err) => {
-        console.error(`[scheduler] Startup task failed: ${task.id}`, err);
+        this.logger.error(`Startup task failed: ${task.id}`, err);
       });
     }
   }
@@ -253,7 +251,7 @@ export class Scheduler {
       // 連続イベント発火を防ぐ（debounce: 1秒以内の重複は無視）
       if (now - this.lastReloadTime < 1000) return;
       this.lastReloadTime = now;
-      this.log('[scheduler] File change detected, reloading...');
+      this.logger.info('File change detected, reloading...');
       this.reload();
     });
   }
@@ -283,7 +281,7 @@ export class Scheduler {
         }
       }
     }
-    this.log(`[scheduler] Reloaded: ${this.schedules.filter((s) => s.enabled).length} active jobs`);
+    this.logger.info(`Reloaded: ${this.schedules.filter((s) => s.enabled).length} active jobs`);
   }
   private startJob(schedule: Schedule): void {
     // 既に動いていたら止める
@@ -297,14 +295,14 @@ export class Scheduler {
         { timezone: TIMEZONE }
       );
       this.cronJobs.set(schedule.id, task);
-      this.log(
-        `[scheduler] Cron job started: ${schedule.id} (${schedule.expression}) → ${schedule.channelId}`
+      this.logger.info(
+        `Cron job started: ${schedule.id} (${schedule.expression}) → ${schedule.channelId}`
       );
     } else if (schedule.type === 'once' && schedule.runAt) {
       const delay = new Date(schedule.runAt).getTime() - Date.now();
       if (delay <= 0) {
         // 既に過ぎている → 即実行して削除
-        this.log(`[scheduler] One-time job ${schedule.id} is past due, executing now`);
+        this.logger.info(`One-time job ${schedule.id} is past due, executing now`);
         this.executeJob(schedule);
         this.remove(schedule.id);
         return;
@@ -316,8 +314,8 @@ export class Scheduler {
       }, delay);
       this.timers.set(schedule.id, timer);
       const runDate = new Date(schedule.runAt);
-      this.log(
-        `[scheduler] Timer set: ${schedule.id} → ${runDate.toLocaleString('ja-JP', { timeZone: TIMEZONE })} (${Math.round(delay / 1000)}s)`
+      this.logger.info(
+        `Timer set: ${schedule.id} → ${runDate.toLocaleString('ja-JP', { timeZone: TIMEZONE })} (${Math.round(delay / 1000)}s)`
       );
     }
   }
@@ -342,18 +340,18 @@ export class Scheduler {
       if (sender) {
         const prefix = schedule.label ? `⏰ **${schedule.label}**\n` : '⏰ ';
         await sender(schedule.channelId, `${prefix}${schedule.message}`);
-        this.log(`[scheduler] Executed (fallback): ${schedule.id} → ${schedule.channelId}`);
+        this.logger.info(`Executed (fallback): ${schedule.id} → ${schedule.channelId}`);
       } else {
-        console.error(`[scheduler] No runner/sender for platform: ${schedule.platform}`);
+        this.logger.error(`No runner/sender for platform: ${schedule.platform}`);
       }
       return;
     }
     try {
-      this.log(`[scheduler] Running agent for: ${schedule.id}`);
+      this.logger.info(`Running agent for: ${schedule.id}`);
       const result = await agentRunner(schedule.message, schedule.channelId);
-      this.log(`[scheduler] Agent completed: ${schedule.id} (${result.length} chars)`);
+      this.logger.info(`Agent completed: ${schedule.id} (${result.length} chars)`);
     } catch (error) {
-      console.error(`[scheduler] Failed to execute ${schedule.id}:`, error);
+      this.logger.error(`Failed to execute ${schedule.id}:`, error);
     }
   }
   // ─── Persistence ──────────────────────────────────────────────────
@@ -366,13 +364,13 @@ export class Scheduler {
         if (result.success) {
           this.schedules = result.data;
         } else {
-          console.error('[scheduler] Invalid schedules data, resetting:', result.error.message);
+          this.logger.error('Invalid schedules data, resetting:', result.error.message);
           this.schedules = [];
         }
-        this.log(`[scheduler] Loaded ${this.schedules.length} schedules from ${this.filePath}`);
+        this.logger.info(`Loaded ${this.schedules.length} schedules from ${this.filePath}`);
       }
     } catch (error) {
-      console.error('[scheduler] Failed to load schedules:', error);
+      this.logger.error('Failed to load schedules:', error);
       this.schedules = [];
     }
   }
@@ -388,7 +386,7 @@ export class Scheduler {
       writeFileSync(tmpPath, JSON.stringify(this.schedules, null, 2), 'utf-8');
       renameSync(tmpPath, this.filePath);
     } catch (error) {
-      console.error('[scheduler] Failed to save schedules:', error);
+      this.logger.error('Failed to save schedules:', error);
       // 一時ファイルが残っていたら削除
       const tmpPath = `${this.filePath}.tmp`;
       try {
@@ -417,10 +415,10 @@ export function formatScheduleList(
 
   const statusHeader: string[] = [];
   if (!schedulerEnabled) {
-    statusHeader.push('⚠️ **スケジューラは無効です** (`SCHEDULER_ENABLED=false`)');
+    statusHeader.push('⚠️ **スケジューラは無効です**');
   }
   if (!startupEnabled) {
-    statusHeader.push('⚠️ **スタートアップは無効です** (`STARTUP_ENABLED=false`)');
+    statusHeader.push('⚠️ **スタートアップは無効です**');
   }
 
   if (schedules.length === 0) {

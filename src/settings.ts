@@ -1,5 +1,8 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { createLogger } from './logger.js';
+
+const logger = createLogger('settings');
 
 export interface Settings {
   autoRestart: boolean;
@@ -63,7 +66,7 @@ export function saveSettings(settings: Partial<Settings>): Settings {
   writeFileSync(path, `${JSON.stringify(merged, null, 2)}\n`, 'utf-8');
 
   cachedSettings = merged;
-  console.log(`[thor] Settings saved: ${JSON.stringify(merged)}`);
+  logger.info(`Settings saved: ${JSON.stringify(merged)}`);
   return { ...merged };
 }
 

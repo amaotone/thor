@@ -6,10 +6,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const CLI_PATH = join(import.meta.dirname, '..', 'src', 'schedule-cli.ts');
 
-function runCli(args: string, dataDir: string): { stdout: string; exitCode: number } {
+function runCli(args: string, workspaceDir: string): { stdout: string; exitCode: number } {
   try {
     const stdout = execSync(`bun ${CLI_PATH} ${args}`, {
-      env: { ...process.env, THOR_DATA_DIR: dataDir },
+      env: { ...process.env, WORKSPACE_PATH: workspaceDir },
       encoding: 'utf-8',
       timeout: 10000,
     });
@@ -96,7 +96,7 @@ describe('schedule-cli', () => {
   it('should persist to JSON file', () => {
     runCli('add --channel ch1 --platform discord "毎日 9:00 永続化テスト"', tmpDir);
 
-    const filePath = join(tmpDir, 'schedules.json');
+    const filePath = join(tmpDir, '.thor', 'schedules.json');
     const raw = readFileSync(filePath, 'utf-8');
     const data = JSON.parse(raw);
     expect(data.length).toBe(1);

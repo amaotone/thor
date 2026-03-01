@@ -12,7 +12,7 @@ describe('config', () => {
     process.env = originalEnv;
   });
 
-  it('should throw error when no tokens are set', async () => {
+  it('should throw error when DISCORD_TOKEN is not set', async () => {
     delete process.env.DISCORD_TOKEN;
 
     // キャッシュをクリアして再インポート
@@ -20,57 +20,34 @@ describe('config', () => {
     expect(() => loadConfig()).toThrow('DISCORD_TOKEN');
   });
 
-  it('should load Discord config when DISCORD_TOKEN is set', async () => {
+  it('should load config when DISCORD_TOKEN is set', async () => {
     process.env.DISCORD_TOKEN = 'test-discord-token';
     process.env.DISCORD_ALLOWED_USER = '123456789';
 
     const { loadConfig } = await import('../src/config.js');
     const config = loadConfig();
 
-    expect(config.discord.enabled).toBe(true);
     expect(config.discord.token).toBe('test-discord-token');
     expect(config.discord.allowedUsers).toContain('123456789');
   });
 
-  it('should default to claude-code backend', async () => {
+  it('should default workdir to ./workspace', async () => {
     process.env.DISCORD_TOKEN = 'test-token';
-    delete process.env.AGENT_BACKEND;
+    delete process.env.WORKSPACE_PATH;
 
     const { loadConfig } = await import('../src/config.js');
     const config = loadConfig();
 
-    expect(config.agent.backend).toBe('claude-code');
+    expect(config.agent.workdir).toBe('./workspace');
   });
 
-  it('should throw error for invalid backend', async () => {
+  it('should use WORKSPACE_PATH when set', async () => {
     process.env.DISCORD_TOKEN = 'test-token';
-    process.env.AGENT_BACKEND = 'invalid';
-
-    const { loadConfig } = await import('../src/config.js');
-    expect(() => loadConfig()).toThrow();
-  });
-
-  it('should enable scheduler and startup by default', async () => {
-    process.env.DISCORD_TOKEN = 'test-token';
-    delete process.env.SCHEDULER_ENABLED;
-    delete process.env.STARTUP_ENABLED;
+    process.env.WORKSPACE_PATH = '/custom/workspace';
 
     const { loadConfig } = await import('../src/config.js');
     const config = loadConfig();
 
-    expect(config.scheduler.enabled).toBe(true);
-    expect(config.scheduler.startupEnabled).toBe(true);
-  });
-
-  it('should disable scheduler when SCHEDULER_ENABLED=false', async () => {
-    process.env.DISCORD_TOKEN = 'test-token';
-    process.env.SCHEDULER_ENABLED = 'false';
-    process.env.STARTUP_ENABLED = 'false';
-
-    const { loadConfig } = await import('../src/config.js');
-    const config = loadConfig();
-
-    expect(config.scheduler.enabled).toBe(false);
-    expect(config.scheduler.startupEnabled).toBe(false);
+    expect(config.agent.workdir).toBe('/custom/workspace');
   });
 });

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createAgentRunner, getBackendDisplayName, mergeTexts } from '../src/agent-runner.js';
+import { createAgentRunner, mergeTexts } from '../src/agent-runner.js';
 
 describe('agent-runner', () => {
   describe('createAgentRunner', () => {
-    it('should create ClaudeCodeRunner for claude-code backend', () => {
-      const runner = createAgentRunner({});
+    it('should create a runner instance', () => {
+      const runner = createAgentRunner({ workdir: './workspace', timeoutMs: 300000 });
       expect(runner).toBeDefined();
       expect(runner.run).toBeDefined();
       expect(runner.runStream).toBeDefined();
@@ -52,12 +52,6 @@ describe('agent-runner', () => {
     it('should handle identical texts', () => {
       const text = 'same text';
       expect(mergeTexts(text, text)).toBe(text);
-    });
-  });
-
-  describe('getBackendDisplayName', () => {
-    it('should return "Claude Code"', () => {
-      expect(getBackendDisplayName()).toBe('Claude Code');
     });
   });
 });

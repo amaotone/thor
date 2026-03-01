@@ -1,6 +1,7 @@
 import type { ChatInputCommandInteraction, Message } from 'discord.js';
 import { DISCORD_MAX_LENGTH, DISCORD_SAFE_LENGTH, TIMEZONE } from './constants.js';
 import { isSendableChannel } from './discord-types.js';
+import { createLogger } from './logger.js';
 import { splitScheduleContent } from './message-utils.js';
 import {
   formatScheduleList,
@@ -10,6 +11,8 @@ import {
   type Scheduler,
   type ScheduleType,
 } from './scheduler.js';
+
+const logger = createLogger('schedule-handler');
 
 /** スケジュールタイプに応じたラベルを生成 */
 export function getTypeLabel(
@@ -381,7 +384,7 @@ export async function executeScheduleFromResponse(
   const input = args.startsWith('add ') ? args.replace(/^add\s+/, '') : args;
   const parsed = parseScheduleInput(input);
   if (!parsed) {
-    console.log(`[thor] Failed to parse schedule input: ${input}`);
+    logger.debug(`Failed to parse schedule input: ${input}`);
     return;
   }
 
@@ -406,6 +409,6 @@ export async function executeScheduleFromResponse(
       );
     }
   } catch (error) {
-    console.error('[thor] Failed to add schedule from response:', error);
+    logger.error('Failed to add schedule from response:', error);
   }
 }
