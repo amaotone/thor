@@ -44,6 +44,12 @@ thor is a wrapper that invokes Claude Code from Discord chat. Designed for singl
 - `persistent-runner.ts` runs Claude Code as a persistent process using `--input-format=stream-json`
 - Scheduler runs periodic tasks with `node-cron` and sends results to channels
 
+## Development Practices
+
+- **TDD (t-wada style)**: Write a failing test first, make it pass with minimal code, then refactor. Red → Green → Refactor cycle.
+- **Tidying (Kent Beck style)**: Separate structural changes from behavioral changes. Make tidying commits (rename, extract, reorder) independently from feature/fix commits.
+- **Conventional Commits**: Commit and push at appropriate milestones. Use `feat:`, `fix:`, `refactor:`, `test:`, `chore:`, etc. Keep commits small and focused.
+
 ## System Prompts
 
 - `prompts/THOR_COMMANDS.md` — Command spec injected into AI CLI
