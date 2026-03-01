@@ -1,167 +1,167 @@
-# 使い方ガイド
+# Usage Guide
 
-thor の詳細な使い方ガイドです。
+A detailed usage guide for thor.
 
-> **関連ドキュメント**: [セットアップ](setup.md) | [アーキテクチャ](architecture.md)
+> **Related docs**: [Setup](setup.md) | [Architecture](architecture.md)
 
-## 目次
+## Table of Contents
 
-- [基本操作](#基本操作)
-- [セッション管理](#セッション管理)
-- [スケジューラー](#スケジューラー)
-- [Discordコマンド](#discordコマンド)
-- [コマンドプレフィックス](#コマンドプレフィックス)
-- [ランタイム設定](#ランタイム設定)
-- [AIによる自律操作](#aiによる自律操作)
+- [Basic Usage](#basic-usage)
+- [Session Management](#session-management)
+- [Scheduler](#scheduler)
+- [Discord Commands](#discord-commands)
+- [Command Prefixes](#command-prefixes)
+- [Runtime Settings](#runtime-settings)
+- [Autonomous AI Operations](#autonomous-ai-operations)
 
-## 基本操作
+## Basic Usage
 
-### メンションで呼び出し
-
-```
-@thor 質問内容
-```
-
-### 専用チャンネル
-
-`AUTO_REPLY_CHANNELS` に設定したチャンネルではメンション不要で応答します。
-
-## セッション管理
-
-| コマンド                    | 説明                   |
-| --------------------------- | ---------------------- |
-| `/new`, `!new`, `new`       | 新しいセッションを開始 |
-| `/clear`, `!clear`, `clear` | セッション履歴をクリア |
-| `/status`, `!status`, `status` | 実行状態を確認 |
-
-## スケジューラー
-
-定期実行やリマインダーを設定できます。AIが自然言語を解釈して `!schedule` コマンドを自動実行します。
-
-### コマンド一覧
-
-| コマンド                        | 説明                                 |
-| ------------------------------- | ------------------------------------ |
-| `/schedule`                     | スラッシュコマンドでスケジュール操作 |
-| `!schedule <時間> <メッセージ>` | スケジュール追加                     |
-| `!schedule list` / `!schedule`  | 一覧表示（全チャンネル）             |
-| `!schedule remove <番号>`       | 削除（複数可: `remove 1 2 3`）       |
-| `!schedule toggle <番号>`       | 有効/無効切り替え                    |
-
-> 💡 `/schedule` スラッシュコマンドでも同様の操作ができます。
-
-### 時間指定の書き方
-
-#### 単発リマインダー
+### Invoke via Mention
 
 ```
-30分後 〇〇をリマインド
-1時間後 会議の準備
-15:30 今日の15時半に通知
+@thor your question
 ```
 
-#### 繰り返し（自然言語）
+### Dedicated Channels
+
+Channels set in `AUTO_REPLY_CHANNELS` will respond without requiring a mention.
+
+## Session Management
+
+| Command                     | Description              |
+| --------------------------- | ------------------------ |
+| `/new`, `!new`, `new`       | Start a new session      |
+| `/clear`, `!clear`, `clear` | Clear session history    |
+| `/status`, `!status`, `status` | Check execution status |
+
+## Scheduler
+
+Set up recurring tasks and reminders. The AI interprets natural language and automatically executes `!schedule` commands.
+
+### Command List
+
+| Command                         | Description                                  |
+| ------------------------------- | -------------------------------------------- |
+| `/schedule`                     | Manage schedules via slash command            |
+| `!schedule <time> <message>`    | Add a schedule                               |
+| `!schedule list` / `!schedule`  | List all schedules (all channels)            |
+| `!schedule remove <number>`     | Remove (multiple: `remove 1 2 3`)            |
+| `!schedule toggle <number>`     | Enable/disable toggle                        |
+
+> The `/schedule` slash command provides the same functionality.
+
+### Time Specification
+
+#### One-Shot Reminders
 
 ```
-毎日 9:00 朝の挨拶
-毎日 18:00 日報を書く
-毎週月曜 10:00 週次レポート
-毎週金曜 17:00 週末の予定確認
+in 30 minutes remind about XX
+in 1 hour prepare for meeting
+15:30 notify at 3:30 PM today
 ```
 
-#### cron式
-
-より細かい制御が必要な場合はcron式も使えます：
+#### Recurring (Natural Language)
 
 ```
-0 9 * * * 毎日9時
-0 */2 * * * 2時間ごと
-30 8 * * 1-5 平日8:30
-0 0 1 * * 毎月1日
+every day 9:00 morning greeting
+every day 18:00 write daily report
+every Monday 10:00 weekly report
+every Friday 17:00 check weekend plans
 ```
 
-| フィールド | 値   | 説明                |
-| ---------- | ---- | ------------------- |
-| 分         | 0-59 |                     |
-| 時         | 0-23 |                     |
-| 日         | 1-31 |                     |
-| 月         | 1-12 |                     |
-| 曜日       | 0-6  | 0=日曜, 1=月曜, ... |
+#### Cron Expressions
 
-### CLI（コマンドライン）
+For finer control, cron expressions are also supported:
+
+```
+0 9 * * * every day at 9 AM
+0 */2 * * * every 2 hours
+30 8 * * 1-5 weekdays at 8:30
+0 0 1 * * first of every month
+```
+
+| Field      | Value | Description          |
+| ---------- | ----- | -------------------- |
+| Minute     | 0-59  |                      |
+| Hour       | 0-23  |                      |
+| Day        | 1-31  |                      |
+| Month      | 1-12  |                      |
+| Day of Week| 0-6   | 0=Sun, 1=Mon, ...    |
+
+### CLI (Command Line)
 
 ```bash
-# スケジュール追加
-bun src/schedule-cli.ts add --channel <channelId> "毎日 9:00 おはよう"
+# Add a schedule
+bun src/schedule-cli.ts add --channel <channelId> "every day 9:00 good morning"
 
-# 一覧表示
+# List schedules
 bun src/schedule-cli.ts list
 
-# 削除（番号指定）
+# Remove by number
 bun src/schedule-cli.ts remove --channel <channelId> 1
 
-# 複数削除
+# Remove multiple
 bun src/schedule-cli.ts remove --channel <channelId> 1 2 3
 
-# 有効/無効切り替え
+# Enable/disable toggle
 bun src/schedule-cli.ts toggle --channel <channelId> 1
 ```
 
-### データ保存
+### Data Storage
 
-スケジュールデータは `${THOR_DATA_DIR}/schedules.json` に保存されます。
+Schedule data is saved in `${THOR_DATA_DIR}/schedules.json`.
 
-- デフォルト: `/workspace/.thor/schedules.json`
-- 環境変数 `THOR_DATA_DIR` で変更可能
+- Default: `/workspace/.thor/schedules.json`
+- Can be changed via the `THOR_DATA_DIR` environment variable
 
-## Discordコマンド
+## Discord Commands
 
-AIがDiscord操作を実行するためのコマンドです。
+Commands for the AI to perform Discord operations.
 
-| コマンド                               | 説明                                                          |
-| -------------------------------------- | ------------------------------------------------------------- |
-| `!discord send <#channel> メッセージ`  | 指定チャンネルにメッセージ送信                                |
-| `!discord channels`                    | サーバーのチャンネル一覧表示                                  |
-| `!discord history [件数] [<#channel>]` | チャンネルの最新メッセージを取得（デフォルト10件、最大100件） |
-| `!discord search キーワード`           | 現在のチャンネルでメッセージ検索                              |
-| `!discord delete <メッセージID>`       | 指定メッセージを削除                                          |
-| `!discord delete <メッセージリンク>`   | リンク先のメッセージを削除（別チャンネルも可）                |
-| `!discord edit <ID/リンク/last> 内容`  | 自分のメッセージを編集（`last` で直前のメッセージ）           |
+| Command                                | Description                                                     |
+| -------------------------------------- | --------------------------------------------------------------- |
+| `!discord send <#channel> message`     | Send a message to a specified channel                           |
+| `!discord channels`                    | List server channels                                            |
+| `!discord history [count] [<#channel>]`| Get latest messages from a channel (default 10, max 100)        |
+| `!discord search keyword`             | Search messages in current channel                              |
+| `!discord delete <messageID>`          | Delete a specific message                                       |
+| `!discord delete <messageLink>`        | Delete message at link (works across channels)                  |
+| `!discord edit <ID/link/last> content` | Edit own message (`last` for the most recent message)           |
 
-### 使用例
+### Examples
 
 ```
-# 別チャンネルに投稿
-!discord send <#1234567890> 作業完了しました！
+# Post to another channel
+!discord send <#1234567890> Work completed!
 
-# チャンネル一覧を確認
+# Check channel list
 !discord channels
 
-# チャンネル履歴を取得（結果はAIのコンテキストに返る）
-!discord history              # 現在のチャンネル最新10件
-!discord history 50           # 現在のチャンネル最新50件
-!discord history 20 <#1234>   # 指定チャンネル20件
-!discord history 30 offset:30 # 30〜60件目を取得（遡り）
+# Get channel history (results are returned to AI context)
+!discord history              # Latest 10 in current channel
+!discord history 50           # Latest 50 in current channel
+!discord history 20 <#1234>   # 20 from specified channel
+!discord history 30 offset:30 # Get messages 30-60 (going back)
 
-# メッセージを検索
+# Search messages
 !discord search PR
 
-# メッセージIDを指定して削除
+# Delete by message ID
 !discord delete 123456789012345678
 
-# メッセージリンクで削除（別チャンネルのメッセージもOK）
+# Delete by message link (works for other channels too)
 !discord delete https://discord.com/channels/111/222/333
 
-# 直前の自分のメッセージを編集
-!discord edit last 修正後の内容
+# Edit most recent own message
+!discord edit last corrected content
 
-# メッセージIDを指定して編集
-!discord edit 123456789012345678 新しい内容
+# Edit by message ID
+!discord edit 123456789012345678 new content
 ```
 
-## ランタイム設定
+## Runtime Settings
 
-`${WORKSPACE_PATH}/settings.json` にランタイム設定が保存されます。
+Runtime settings are saved in `${WORKSPACE_PATH}/settings.json`.
 
 ```json
 {
@@ -169,56 +169,56 @@ AIがDiscord操作を実行するためのコマンドです。
 }
 ```
 
-| 設定          | 説明                             | デフォルト |
-| ------------- | -------------------------------- | ---------- |
-| `autoRestart` | AIエージェントによる再起動を許可 | `true`     |
+| Setting       | Description                          | Default |
+| ------------- | ------------------------------------ | ------- |
+| `autoRestart` | Allow AI agent to trigger restarts   | `true`  |
 
-### 設定の確認・変更
+### Viewing & Changing Settings
 
-| コマンド    | 説明             |
-| ----------- | ---------------- |
-| `/settings` | 現在の設定を表示 |
-| `/restart`  | ボットを再起動   |
+| Command     | Description            |
+| ----------- | ---------------------- |
+| `/settings` | Show current settings  |
+| `/restart`  | Restart the bot        |
 
-## AIによる自律操作
+## Autonomous AI Operations
 
-### 設定変更（ローカル実行時のみ）
+### Settings Changes (Local Execution Only)
 
-AIは `.env` ファイルを編集して設定を変更できます：
+The AI can edit the `.env` file to change settings:
 
 ```
-「このチャンネルでも応答して」
-→ AIが AUTO_REPLY_CHANNELS を編集 → 再起動
+"Also respond in this channel"
+→ AI edits AUTO_REPLY_CHANNELS → restart
 ```
 
-### システムコマンド
+### System Commands
 
-AIが出力する特殊コマンド：
+Special commands output by the AI:
 
-| コマンド                 | 説明           |
-| ------------------------ | -------------- |
-| `SYSTEM_COMMAND:restart` | ボットを再起動 |
+| Command                  | Description      |
+| ------------------------ | ---------------- |
+| `SYSTEM_COMMAND:restart` | Restart the bot  |
 
-### 再起動の仕組み
+### Restart Mechanism
 
-- **Docker**: `restart: always` により自動復帰
-- **ローカル**: pm2等のプロセスマネージャが必要
+- **Docker**: Auto-recovers via `restart: always`
+- **Local**: Requires a process manager like pm2
 
 ```bash
-# pm2での運用例
+# Example using pm2
 pm2 start "bun start" --name thor
 pm2 logs thor
 ```
 
-### pm2で環境変数を変更する場合
+### Changing Environment Variables with pm2
 
-thorは bun の `.env` 自動読み込みで環境変数を読み込みます。環境変数を変更したい場合は **`.env` ファイルを編集してから `pm2 restart`** してください。
+thor loads environment variables via bun's automatic `.env` loading. To change environment variables, **edit the `.env` file and then `pm2 restart`**.
 
 ```bash
-# 正しい方法: .envを編集してrestart
-vim .env  # TIMEOUT_MS=60000 を追加
+# Correct method: edit .env then restart
+vim .env  # Add TIMEOUT_MS=60000
 pm2 restart thor
 ```
 
-> **⚠️ `pm2 restart --update-env` は使わないこと！**
-> `--update-env` はシェルの全環境変数をpm2に保存します。複数のthorインスタンスを動かしている場合、別インスタンスの `DISCORD_TOKEN` 等が混入し、同じbotトークンで二重ログインする原因になります。
+> **⚠️ Do NOT use `pm2 restart --update-env`!**
+> `--update-env` saves all shell environment variables to pm2. If you're running multiple thor instances, tokens like `DISCORD_TOKEN` from other instances may leak in, causing duplicate bot logins with the same token.

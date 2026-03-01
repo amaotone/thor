@@ -2,8 +2,8 @@
 
 # thor
 
-thor は Discord で使う個人向け AI アシスタントです。
-Claude Code をバックエンドとして利用します。
+thor is a personal AI assistant for Discord.
+It uses Claude Code as its backend.
 
 ## Minimum Setup
 
@@ -11,14 +11,14 @@ Claude Code をバックエンドとして利用します。
 cp .env.example .env
 ```
 
-`.env` に最低限これを設定してください。
+Set the following in `.env` at minimum:
 
 ```bash
 DISCORD_TOKEN=your_discord_bot_token
 DISCORD_ALLOWED_USER=123456789012345678
 ```
 
-起動:
+Start:
 
 ```bash
 docker compose up thor -d --build
@@ -26,21 +26,21 @@ docker compose up thor -d --build
 
 ## Core Commands
 
-- `/new` 新しいセッションを開始
-- `/stop` 実行中タスクを停止
-- `/status` 実行状態を確認
-- `/settings` 現在設定を表示
-- `/restart` ボットを再起動
-- `/schedule` スケジュール管理
-- `/skills` スキル一覧
-- `/skill` スキル実行
-- `/skip` 許可確認をスキップして実行
+- `/new` Start a new session
+- `/stop` Stop running task
+- `/status` Check execution status
+- `/settings` Show current settings
+- `/restart` Restart the bot
+- `/schedule` Manage schedules
+- `/skills` List skills
+- `/skill` Execute a skill
+- `/skip` Skip permission confirmation and execute
 
 ## Notes
 
-- シングルユーザー前提
-- デフォルト作業ディレクトリは `./workspace`
-- データ保存先は `./workspace/.thor`
+- Designed for single-user use
+- Default working directory is `./workspace`
+- Data is stored in `./workspace/.thor`
 
 ## Inspired by
 

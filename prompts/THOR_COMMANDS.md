@@ -1,192 +1,192 @@
-# THOR_COMMANDS.md - thor専用ガイド
+# THOR_COMMANDS.md - thor Dedicated Guide
 
-thorの専用コマンド・設定・運用ルール。
-**セッション開始時に必ず読むこと。**
+Dedicated commands, settings, and operational rules for thor.
+**Read this at the start of every session.**
 
-## Discord操作コマンド
+## Discord Operation Commands
 
-**⚠️ `!discord` コマンドはBashコマンドではない！**
-応答テキストに直接書くこと。Bashツールで実行すると `command not found` エラーになる。
-thorがテキスト出力を各行ごとにパースして処理する仕組み。
+**⚠️ `!discord` commands are NOT Bash commands!**
+Write them directly in the response text. Running them with the Bash tool will result in a `command not found` error.
+thor parses text output line by line for processing.
 
-**📏 記述ルール（全コマンド共通）：**
-- **行頭に書くこと** — 各行をtrimしてから `startsWith` でチェックされるため、行の途中に書いても認識されない
-- **コードブロック内は無視される** — ` ``` ` で囲んだ中のコマンドは実行されない（ドキュメント例示に安全に使える）
-- `!discord`, `!schedule`, `SYSTEM_COMMAND:` はすべて行頭必須
-- `MEDIA:` だけは例外で、行の途中でも認識される
+**📏 Formatting Rules (all commands):**
+- **Must be at the start of a line** — Each line is trimmed then checked with `startsWith`, so commands written mid-line won't be recognized
+- **Ignored inside code blocks** — Commands within ` ``` ` blocks are not executed (safe for documentation examples)
+- `!discord`, `!schedule`, `SYSTEM_COMMAND:` must all be at the start of a line
+- `MEDIA:` is the exception — it is recognized even mid-line
 
-### 別チャンネルにメッセージ送信
+### Send a Message to Another Channel
 
 ```
-!discord send <#チャンネルID> メッセージ内容
+!discord send <#channelID> message content
 ```
 
-**例：**
+**Examples:**
 ```
 !discord send <#1469606785672417383> hello!
-!discord send <#1466570723639165072> 作業開始します
+!discord send <#1466570723639165072> Starting work now
 ```
 
-**注意：**
-- `<#チャンネルID>` の形式を守ること（`<#` と `>` で囲む）
-- 「〇〇チャンネルに△△って言って」と頼まれたら、このコマンドを使う
+**Notes:**
+- Follow the `<#channelID>` format (wrap with `<#` and `>`)
+- When asked "say XX in YY channel", use this command
 
-### チャンネル一覧を取得
+### List Channels
 
 ```
 !discord channels
 ```
 
-### チャンネル履歴の取得
+### Get Channel History
 
 ```
-!discord history [件数] [<#チャンネルID>]
+!discord history [count] [<#channelID>]
 ```
 
-チャンネルの最新メッセージを取得する。**結果はDiscordに送信されず、自分のコンテキストに返る。**
+Get the latest messages from a channel. **Results are returned to your context, not sent to Discord.**
 
-- 件数省略時はデフォルト10件、最大100件
-- チャンネルID省略時は現在のチャンネル
-- `offset:N` で古いメッセージに遡れる（30件ずつ取得でタイムアウト防止）
-- 各メッセージに `(ID:メッセージID)` が含まれる。`!discord delete` で使用可能
+- Default count is 10, maximum 100
+- If channel ID is omitted, uses the current channel
+- Use `offset:N` to go further back (fetch 30 at a time to prevent timeouts)
+- Each message includes `(ID:messageID)`, which can be used with `!discord delete`
 
-**例：**
+**Examples:**
 ```
-!discord history              # 現在のチャンネル最新10件
-!discord history 50           # 現在のチャンネル最新50件
-!discord history 20 <#1466570723639165072>  # 指定チャンネル20件
-!discord history 30 offset:30   # 30〜60件目を取得
-!discord history 30 offset:60   # 60〜90件目を取得
-!discord history 30 offset:30 <#1466570723639165072>  # 別チャンネルで遡る
-```
-
-**大量の履歴を取得したい場合（タイムアウト防止）：**
-100件一括取得ではなく、30件ずつoffsetで遡ること：
-1. `!discord history 30` → 最新30件
-2. `!discord history 30 offset:30` → 30〜60件目
-3. `!discord history 30 offset:60` → 60〜90件目
-
-**用途：**
-- セッションリセット後に会話の文脈を把握
-- 過去の会話を参照して判断材料にする
-- 日記作成時に1日分の会話を段階的に取得
-
-### メッセージ削除
-
-```
-!discord delete <メッセージID>      # 指定メッセージを削除
-!discord delete <メッセージリンク>   # リンク先メッセージを削除（別チャンネルも可）
+!discord history              # Latest 10 messages in current channel
+!discord history 50           # Latest 50 messages in current channel
+!discord history 20 <#1466570723639165072>  # 20 messages from specified channel
+!discord history 30 offset:30   # Get messages 30-60
+!discord history 30 offset:60   # Get messages 60-90
+!discord history 30 offset:30 <#1466570723639165072>  # Go back in another channel
 ```
 
-- 必ずメッセージIDまたはリンクを指定すること（引数なしは不可）
-- 自分（bot）のメッセージのみ削除可能（他人のメッセージは削除できない）
-- メッセージリンクは `https://discord.com/channels/...` 形式
+**For fetching large amounts of history (timeout prevention):**
+Instead of fetching 100 at once, go back 30 at a time:
+1. `!discord history 30` → Latest 30 messages
+2. `!discord history 30 offset:30` → Messages 30-60
+3. `!discord history 30 offset:60` → Messages 60-90
 
-**⚠️ 重要：ユーザーがメッセージリンクを貼った場合の削除手順：**
-1. `!discord history` は**実行しない**（不要）
-2. ユーザーが貼ったリンクをそのまま `!discord delete <リンク>` に渡す
-3. 例: ユーザーが `https://discord.com/channels/111/222/333` を貼って「消して」→ `!discord delete https://discord.com/channels/111/222/333`
+**Use cases:**
+- Understand conversation context after a session reset
+- Reference past conversations for decision-making
+- Gradually fetch a full day's conversation for diary creation
 
-リンクもIDも不明で「さっきの消して」のような場合のみ、履歴でIDを確認する。
+### Delete a Message
+
+```
+!discord delete <messageID>      # Delete a specific message
+!discord delete <messageLink>    # Delete message at link (works across channels)
+```
+
+- Always specify a message ID or link (no argument is not allowed)
+- Only your own (bot) messages can be deleted (cannot delete others' messages)
+- Message links use the `https://discord.com/channels/...` format
+
+**⚠️ Important: Deletion steps when a user pastes a message link:**
+1. Do **NOT** run `!discord history` (unnecessary)
+2. Pass the link directly to `!discord delete <link>`
+3. Example: User pastes `https://discord.com/channels/111/222/333` and says "delete it" → `!discord delete https://discord.com/channels/111/222/333`
+
+Only check history for the ID when neither a link nor ID is provided, e.g., "delete the last one."
 
 ---
 
-## ファイル送信
+## File Sending
 
-チャットにファイルを送信する場合は、出力に以下の形式でパスを含める（**行頭でなくてもOK**、テキスト途中でも認識される）：
+To send a file in chat, include a path in the following format in your output (**does NOT need to be at the start of a line**, recognized even mid-text):
 
 ```
 MEDIA:/path/to/file
 ```
 
-**対応形式:** png, jpg, jpeg, gif, webp, mp3, mp4, wav, flac, pdf, zip
+**Supported formats:** png, jpg, jpeg, gif, webp, mp3, mp4, wav, flac, pdf, zip
 
-**例：**
+**Example:**
 ```
-画像を生成しました。
+Image generated.
 MEDIA:/tmp/output.png
 ```
 
-ユーザーが添付したファイルは `[添付ファイル]` としてパスが渡される。
-添付ファイルの保存先: `[STATE_DIR]/media/attachments/`
+Files attached by the user are passed as `[Attached file]` with a path.
+Attachment storage location: `[STATE_DIR]/media/attachments/`
 
 ---
 
-## システムコマンド
+## System Commands
 
-応答に以下の形式を含めることで、システムを操作できる（行頭に記述）：
+Include the following format in your response to operate the system (at the start of a line):
 
-- `SYSTEM_COMMAND:restart` — ボットを再起動
+- `SYSTEM_COMMAND:restart` — Restart the bot
 
-ユーザーから再起動を求められた場合は `SYSTEM_COMMAND:restart` を含める。
-スラッシュコマンド `/restart` `/settings` もある。
+When the user requests a restart, include `SYSTEM_COMMAND:restart`.
+Slash commands `/restart` and `/settings` are also available.
 
 
-## スケジュール・リマインダー
+## Schedules & Reminders
 
-`!schedule` コマンドでリマインダーや定期実行を設定できる。
+Use `!schedule` commands to set up reminders and recurring tasks.
 
-### 設定ファイル
+### Config File
 
-`.thor/schedules.json` に保存される。手動で編集も可能。
+Saved in `.thor/schedules.json`. Can also be edited manually.
 
-### コマンド
-
-```
-!schedule add <設定>     # スケジュール追加
-!schedule list           # 一覧表示
-!schedule remove <ID>    # 削除
-!schedule toggle <ID>    # 有効/無効切り替え
-```
-
-### 設定フォーマット
-
-- `30分後 ミーティング` — N分後（秒/時間も可）
-- `15:00 レビュー` — 今日のその時刻（過ぎたら翌日）
-- `2025-03-01 14:00 締め切り` — 日時指定
-- `毎日 9:00 おはよう` — 毎日定時
-- `毎時 チェック` — 毎時0分
-- `毎週月曜 10:00 週次MTG` — 毎週（月〜日対応）
-- `cron 0 9 * * * おはよう` — cron式直接指定
-
-### 別チャンネルへの送信
-
-`-c <#チャンネルID>` または `<#チャンネルID>` を先頭に付けると、指定チャンネルに送信できる。
+### Commands
 
 ```
-!schedule add -c <#1469606785672417383> 3分後 テストメッセージ
-!schedule add <#1469606785672417383> 毎日 9:00 おはよう
+!schedule add <config>     # Add a schedule
+!schedule list             # List all schedules
+!schedule remove <ID>      # Remove a schedule
+!schedule toggle <ID>      # Enable/disable toggle
 ```
 
-## 自動展開機能（読み取り専用）
+### Config Format
 
-これらは thor が自動で処理するので、コマンド不要：
+- `in 30 minutes meeting` — After N minutes (seconds/hours also supported)
+- `15:00 review` — At that time today (next day if already past)
+- `2025-03-01 14:00 deadline` — Specific date and time
+- `every day 9:00 good morning` — Daily at a fixed time
+- `every hour check` — At the top of every hour
+- `every Monday 10:00 weekly meeting` — Weekly (Mon-Sun supported)
+- `cron 0 9 * * * good morning` — Direct cron expression
 
-- `https://discord.com/channels/.../...` リンク → リンク先メッセージの内容を展開
-- `<#channelId>` または `#channel名` → そのチャンネルの最新10件を展開
+### Sending to Another Channel
+
+Prefix with `-c <#channelID>` or `<#channelID>` to send to a specific channel.
+
+```
+!schedule add -c <#1469606785672417383> in 3 minutes test message
+!schedule add <#1469606785672417383> every day 9:00 good morning
+```
+
+## Auto-Expansion Features (Read-Only)
+
+These are handled automatically by thor — no commands needed:
+
+- `https://discord.com/channels/.../...` link → Expands the linked message content
+- `<#channelId>` or `#channelName` → Expands latest 10 messages from that channel
 
 
-## タイムアウト対策
+## Timeout Countermeasures
 
-thorのデフォルトタイムアウトは5分（300000ms）。
-5分以上かかる処理はバックグラウンド実行し、即座に「実行開始した」と応答を返すこと。
+thor's default timeout is 5 minutes (300000ms).
+For tasks taking more than 5 minutes, run them in the background and immediately respond with "execution started."
 
-### `nohup` vs `run_in_background` の使い分け
+### `nohup` vs `run_in_background`
 
-- **`nohup コマンド > log 2>&1 &`（推奨）** — Claude Codeプロセスが終了しても処理が継続する。タイムアウトやセッション切れでも安全
-- **`run_in_background: true`** — Claude Codeプロセス内で動くため、タイムアウト（5分）でプロセスごとkillされると一緒に死ぬ
+- **`nohup command > log 2>&1 &` (recommended)** — Continues even after the Claude Code process exits. Safe against timeouts and session disconnects
+- **`run_in_background: true`** — Runs within the Claude Code process, so if it's killed at timeout (5 min), the background task dies too
 
-**結論：長時間処理は `nohup` を使うこと。** `run_in_background` はプロセスが生きている間だけの短いバックグラウンド処理向け。
+**Conclusion: Use `nohup` for long-running tasks.** `run_in_background` is for short background tasks while the process is alive.
 
 ```bash
-# 長時間処理の例
-nohup 長いコマンド > /tmp/output.log 2>&1 &
+# Example for long-running tasks
+nohup long-running-command > /tmp/output.log 2>&1 &
 echo "PID: $!"
 ```
 
-結果は次回のやり取り時に `tail /tmp/output.log` で確認して報告する。
+Check results in the next interaction with `tail /tmp/output.log` and report back.
 
-### 必ずバックグラウンド実行する処理
-- 文字起こし
-- 大規模ビルド
-- 長時間のダウンロード
+### Tasks That Must Always Run in Background
+- Transcription
+- Large builds
+- Long downloads
