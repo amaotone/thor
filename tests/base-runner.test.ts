@@ -9,7 +9,7 @@ import {
   CHAT_SYSTEM_PROMPT_RESUME,
   loadSoulMd,
   loadUserMd,
-} from '../src/base-runner.js';
+} from '../src/agent/base-runner.js';
 
 describe('loadUserMd', () => {
   let tempDir: string;

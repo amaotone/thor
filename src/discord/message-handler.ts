@@ -1,16 +1,20 @@
 import type { Message } from 'discord.js';
-import type { AgentRunner } from './agent-runner.js';
-import { loadBeadsContext } from './beads.js';
-import type { Config } from './config.js';
-import { DISCORD_MAX_LENGTH, DISCORD_SAFE_LENGTH, STREAM_UPDATE_INTERVAL_MS } from './constants.js';
+import type { AgentRunner } from '../agent/agent-runner.js';
+import { loadBeadsContext } from '../lib/beads.js';
+import type { Config } from '../lib/config.js';
+import {
+  DISCORD_MAX_LENGTH,
+  DISCORD_SAFE_LENGTH,
+  STREAM_UPDATE_INTERVAL_MS,
+} from '../lib/constants.js';
+import { executeCommandsWithFeedback } from '../lib/feedback-loop.js';
+import { extractFilePaths, stripFilePaths } from '../lib/file-utils.js';
+import { createLogger } from '../lib/logger.js';
+import { splitMessage } from '../lib/message-utils.js';
+import { parseAgentResponse } from '../lib/response-parser.js';
+import { handleSettingsFromResponse } from '../lib/system-commands.js';
+import type { Scheduler } from '../scheduler/scheduler.js';
 import { isSendableChannel } from './discord-types.js';
-import { executeCommandsWithFeedback } from './feedback-loop.js';
-import { extractFilePaths, stripFilePaths } from './file-utils.js';
-import { createLogger } from './logger.js';
-import { splitMessage } from './message-utils.js';
-import { parseAgentResponse } from './response-parser.js';
-import type { Scheduler } from './scheduler.js';
-import { handleSettingsFromResponse } from './system-commands.js';
 
 const logger = createLogger('thor');
 

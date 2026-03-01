@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ClaudeCodeRunner } from '../src/claude-code.js';
+import { ClaudeCodeRunner } from '../src/agent/claude-code.js';
 
 // child_process をモック
 vi.mock('child_process', () => {

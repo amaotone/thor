@@ -1,6 +1,6 @@
 import type { Client, Message } from 'discord.js';
-import { TIMEZONE } from './constants.js';
-import { createLogger } from './logger.js';
+import { TIMEZONE } from '../lib/constants.js';
+import { createLogger } from '../lib/logger.js';
 
 const logger = createLogger('discord');
 

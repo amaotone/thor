@@ -1,7 +1,7 @@
 import type { Client, Message } from 'discord.js';
-import { handleDiscordCommandsInResponse } from './discord-commands.js';
+import { handleDiscordCommandsInResponse } from '../discord/discord-commands.js';
+import type { Scheduler } from '../scheduler/scheduler.js';
 import { createLogger } from './logger.js';
-import type { Scheduler } from './scheduler.js';
 
 const logger = createLogger('feedback');
 

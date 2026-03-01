@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createLogger } from './logger.js';
+import { createLogger } from '../lib/logger.js';
 
 const logger = createLogger('base-runner');
 

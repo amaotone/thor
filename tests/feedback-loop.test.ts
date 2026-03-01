@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // handleDiscordCommandsInResponse をモック
-vi.mock('../src/discord-commands.js', () => ({
+vi.mock('../src/discord/discord-commands.js', () => ({
   handleDiscordCommandsInResponse: vi.fn(),
 }));
 
-import { handleDiscordCommandsInResponse } from '../src/discord-commands.js';
-import { executeCommandsWithFeedback } from '../src/feedback-loop.js';
+import { handleDiscordCommandsInResponse } from '../src/discord/discord-commands.js';
+import { executeCommandsWithFeedback } from '../src/lib/feedback-loop.js';
 
 const mockHandleCommands = vi.mocked(handleDiscordCommandsInResponse);
 

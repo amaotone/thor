@@ -1,12 +1,12 @@
 import { join } from 'node:path';
-import { createAgentRunner } from './agent-runner.js';
-import { initBeads } from './beads.js';
-import { loadConfig } from './config.js';
-import { registerSchedulerHandlers, setupDiscordClient } from './discord-client.js';
-import { createLogger } from './logger.js';
-import { Scheduler } from './scheduler.js';
-import { initSessions } from './sessions.js';
-import { initSettings, loadSettings } from './settings.js';
+import { createAgentRunner } from './agent/agent-runner.js';
+import { registerSchedulerHandlers, setupDiscordClient } from './discord/discord-client.js';
+import { initBeads } from './lib/beads.js';
+import { loadConfig } from './lib/config.js';
+import { createLogger } from './lib/logger.js';
+import { initSessions } from './lib/sessions.js';
+import { initSettings, loadSettings } from './lib/settings.js';
+import { Scheduler } from './scheduler/scheduler.js';
 
 const logger = createLogger('thor');
 

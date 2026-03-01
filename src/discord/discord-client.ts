@@ -1,10 +1,13 @@
 import { Client, Events, GatewayIntentBits, type Message, REST, Routes } from 'discord.js';
-import type { AgentRunner } from './agent-runner.js';
-import type { Config } from './config.js';
-import { MAX_QUEUE_PER_CHANNEL } from './constants.js';
+import type { AgentRunner } from '../agent/agent-runner.js';
+import type { Config } from '../lib/config.js';
+import { MAX_QUEUE_PER_CHANNEL } from '../lib/constants.js';
+import { buildPromptWithAttachments, downloadFile } from '../lib/file-utils.js';
+import { createLogger } from '../lib/logger.js';
+import { loadSkills, type Skill } from '../lib/skills.js';
+import { handleScheduleMessage } from '../scheduler/schedule-handler.js';
+import type { Scheduler } from '../scheduler/scheduler.js';
 import { handleDiscordCommand } from './discord-commands.js';
-import { buildPromptWithAttachments, downloadFile } from './file-utils.js';
-import { createLogger } from './logger.js';
 import {
   annotateChannelMentions,
   fetchChannelMessages,
@@ -12,9 +15,6 @@ import {
   fetchReplyContent,
 } from './message-enrichment.js';
 import { handleResponseFeedback, processPrompt } from './message-handler.js';
-import { handleScheduleMessage } from './schedule-handler.js';
-import type { Scheduler } from './scheduler.js';
-import { loadSkills, type Skill } from './skills.js';
 import {
   buildSlashCommands,
   formatChannelStatus,
@@ -262,4 +262,4 @@ async function handleMessage(message: Message, client: Client, deps: MessageDeps
 }
 
 // Re-export registerSchedulerHandlers from scheduler-bridge
-export { registerSchedulerHandlers } from './scheduler-bridge.js';
+export { registerSchedulerHandlers } from '../scheduler/scheduler-bridge.js';

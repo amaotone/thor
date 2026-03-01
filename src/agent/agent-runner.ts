@@ -1,4 +1,4 @@
-import type { AgentConfig } from './config.js';
+import type { AgentConfig } from '../lib/config.js';
 import { RunnerManager } from './runner-manager.js';
 
 export interface RunOptions {

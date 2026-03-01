@@ -16,7 +16,7 @@ describe('config', () => {
     delete process.env.DISCORD_TOKEN;
 
     // キャッシュをクリアして再インポート
-    const { loadConfig } = await import('../src/config.js');
+    const { loadConfig } = await import('../src/lib/config.js');
     expect(() => loadConfig()).toThrow('DISCORD_TOKEN');
   });
 
@@ -24,7 +24,7 @@ describe('config', () => {
     process.env.DISCORD_TOKEN = 'test-discord-token';
     process.env.DISCORD_ALLOWED_USER = '123456789';
 
-    const { loadConfig } = await import('../src/config.js');
+    const { loadConfig } = await import('../src/lib/config.js');
     const config = loadConfig();
 
     expect(config.discord.token).toBe('test-discord-token');
@@ -35,7 +35,7 @@ describe('config', () => {
     process.env.DISCORD_TOKEN = 'test-token';
     delete process.env.WORKSPACE_PATH;
 
-    const { loadConfig } = await import('../src/config.js');
+    const { loadConfig } = await import('../src/lib/config.js');
     const config = loadConfig();
 
     expect(config.agent.workdir).toBe('./workspace');
@@ -45,7 +45,7 @@ describe('config', () => {
     process.env.DISCORD_TOKEN = 'test-token';
     process.env.WORKSPACE_PATH = '/custom/workspace';
 
-    const { loadConfig } = await import('../src/config.js');
+    const { loadConfig } = await import('../src/lib/config.js');
     const config = loadConfig();
 
     expect(config.agent.workdir).toBe('/custom/workspace');

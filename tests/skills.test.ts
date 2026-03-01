@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatSkillList, type Skill } from '../src/skills.js';
+import { formatSkillList, type Skill } from '../src/lib/skills.js';
 
 describe('skills', () => {
   describe('formatSkillList', () => {

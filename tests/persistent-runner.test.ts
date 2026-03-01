@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PersistentRunner } from '../src/persistent-runner.js';
+import { PersistentRunner } from '../src/agent/persistent-runner.js';
 
 // Child process をモック
 vi.mock('child_process', () => {

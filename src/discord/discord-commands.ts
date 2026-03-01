@@ -1,11 +1,11 @@
 import type { Client, Message } from 'discord.js';
-import { TIMEZONE } from './constants.js';
+import { TIMEZONE } from '../lib/constants.js';
+import { createLogger } from '../lib/logger.js';
+import { chunkDiscordMessage } from '../lib/message-utils.js';
+import { parseAgentResponse } from '../lib/response-parser.js';
+import { executeScheduleFromResponse } from '../scheduler/schedule-handler.js';
+import type { Scheduler } from '../scheduler/scheduler.js';
 import { isSendableChannel } from './discord-types.js';
-import { createLogger } from './logger.js';
-import { chunkDiscordMessage } from './message-utils.js';
-import { parseAgentResponse } from './response-parser.js';
-import { executeScheduleFromResponse } from './schedule-handler.js';
-import type { Scheduler } from './scheduler.js';
 
 const logger = createLogger('discord');
 

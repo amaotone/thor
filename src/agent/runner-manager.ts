@@ -1,3 +1,5 @@
+import type { AgentConfig } from '../lib/config.js';
+import { createLogger } from '../lib/logger.js';
 import type {
   AgentRunner,
   RunnerStatus,
@@ -5,8 +7,6 @@ import type {
   RunResult,
   StreamCallbacks,
 } from './agent-runner.js';
-import type { AgentConfig } from './config.js';
-import { createLogger } from './logger.js';
 import { PersistentRunner } from './persistent-runner.js';
 
 const logger = createLogger('runner-manager');

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { RunnerManager } from '../src/runner-manager.js';
+import { RunnerManager } from '../src/agent/runner-manager.js';
 
 // PersistentRunner をモック
-vi.mock('../src/persistent-runner.js', () => {
+vi.mock('../src/agent/persistent-runner.js', () => {
   class MockPersistentRunner {
     private alive = true;
     private busy = false;

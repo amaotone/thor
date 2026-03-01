@@ -1,4 +1,4 @@
-import { TIMEZONE } from './constants.js';
+import { TIMEZONE } from '../lib/constants.js';
 import type { Schedule } from './scheduler.js';
 
 /** スケジュール一覧の項目間区切り（splitMessage用） */

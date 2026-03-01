@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseAgentResponse } from '../src/response-parser.js';
+import { parseAgentResponse } from '../src/lib/response-parser.js';
 
 /**
  * annotateChannelMentions のテスト用に関数を再実装

@@ -9,7 +9,7 @@ import {
   getSessionCount,
   initSessions,
   setSession,
-} from '../src/sessions.js';
+} from '../src/lib/sessions.js';
 
 describe('sessions', () => {
   let testDir: string;

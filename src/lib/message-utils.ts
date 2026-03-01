@@ -1,5 +1,5 @@
+import { SCHEDULE_SEPARATOR } from '../scheduler/scheduler.js';
 import { DISCORD_MAX_LENGTH } from './constants.js';
-import { SCHEDULE_SEPARATOR } from './scheduler.js';
 
 /** メッセージを指定文字数で分割（カスタムセパレータ対応、デフォルトは行単位） */
 export function splitMessage(text: string, maxLength: number, separator = '\n'): string[] {

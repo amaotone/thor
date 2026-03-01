@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Config } from '../src/config.js';
-import { formatErrorDetail } from '../src/message-handler.js';
+import { formatErrorDetail } from '../src/discord/message-handler.js';
+import type { Config } from '../src/lib/config.js';
 
 function makeConfig(overrides?: Partial<Config['agent']>): Config {
   return {

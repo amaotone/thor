@@ -1,16 +1,16 @@
 import type { AutocompleteInteraction, ChatInputCommandInteraction } from 'discord.js';
 import { SlashCommandBuilder } from 'discord.js';
-import type { AgentRunner } from './agent-runner.js';
-import type { Config } from './config.js';
-import { DISCORD_SAFE_LENGTH } from './constants.js';
+import type { AgentRunner } from '../agent/agent-runner.js';
+import type { Config } from '../lib/config.js';
+import { DISCORD_SAFE_LENGTH } from '../lib/constants.js';
+import { createLogger } from '../lib/logger.js';
+import { splitMessage } from '../lib/message-utils.js';
+import { formatSettings, loadSettings } from '../lib/settings.js';
+import { formatSkillList, type Skill } from '../lib/skills.js';
+import { handleScheduleCommand } from '../scheduler/schedule-handler.js';
+import type { Scheduler } from '../scheduler/scheduler.js';
 import { isSendableChannel } from './discord-types.js';
-import { createLogger } from './logger.js';
 import { executeSkillCommand } from './message-handler.js';
-import { splitMessage } from './message-utils.js';
-import { handleScheduleCommand } from './schedule-handler.js';
-import type { Scheduler } from './scheduler.js';
-import { formatSettings, loadSettings } from './settings.js';
-import { formatSkillList, type Skill } from './skills.js';
 
 const logger = createLogger('discord');
 
@@ -283,7 +283,7 @@ export async function handleSlashCommand(
       const settings = loadSettings();
       if (key === 'autoRestart') {
         settings.autoRestart = value === 'true';
-        const { saveSettings } = await import('./settings.js');
+        const { saveSettings } = await import('../lib/settings.js');
         saveSettings(settings);
       }
       await interaction.reply(`⚙️ \`${key}\` = \`${value}\``);

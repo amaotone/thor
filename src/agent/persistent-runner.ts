@@ -1,15 +1,15 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import type { AgentRunner, RunOptions, RunResult, StreamCallbacks } from './agent-runner.js';
-import { mergeTexts } from './agent-runner.js';
-import { buildPersistentSystemPrompt } from './base-runner.js';
 import {
   BACKOFF_BASE_MS,
   BACKOFF_MAX_MS,
   DEFAULT_TIMEOUT_MS,
   MAX_BUFFER_SIZE,
-} from './constants.js';
-import { createLogger } from './logger.js';
+} from '../lib/constants.js';
+import { createLogger } from '../lib/logger.js';
+import type { AgentRunner, RunOptions, RunResult, StreamCallbacks } from './agent-runner.js';
+import { mergeTexts } from './agent-runner.js';
+import { buildPersistentSystemPrompt } from './base-runner.js';
 
 const logger = createLogger('persistent-runner');
 

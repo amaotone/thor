@@ -1,15 +1,15 @@
 import type { Client } from 'discord.js';
-import type { AgentRunner } from './agent-runner.js';
-import { loadBeadsContext } from './beads.js';
-import type { Config } from './config.js';
-import { DISCORD_SAFE_LENGTH } from './constants.js';
-import { handleDiscordCommand } from './discord-commands.js';
-import { isSendableChannel } from './discord-types.js';
-import { executeCommandsWithFeedback } from './feedback-loop.js';
-import { extractFilePaths, stripFilePaths } from './file-utils.js';
-import { createLogger } from './logger.js';
-import { splitMessage } from './message-utils.js';
-import { parseAgentResponse } from './response-parser.js';
+import type { AgentRunner } from '../agent/agent-runner.js';
+import { handleDiscordCommand } from '../discord/discord-commands.js';
+import { isSendableChannel } from '../discord/discord-types.js';
+import { loadBeadsContext } from '../lib/beads.js';
+import type { Config } from '../lib/config.js';
+import { DISCORD_SAFE_LENGTH } from '../lib/constants.js';
+import { executeCommandsWithFeedback } from '../lib/feedback-loop.js';
+import { extractFilePaths, stripFilePaths } from '../lib/file-utils.js';
+import { createLogger } from '../lib/logger.js';
+import { splitMessage } from '../lib/message-utils.js';
+import { parseAgentResponse } from '../lib/response-parser.js';
 import type { Scheduler } from './scheduler.js';
 
 const logger = createLogger('scheduler');

@@ -1,8 +1,12 @@
 import type { ChatInputCommandInteraction, Message } from 'discord.js';
-import { TIMEZONE } from './constants.js';
-import { sendChunkedMessage, sendChunkedReply, sendScheduleContent } from './discord-send.js';
-import { isSendableChannel } from './discord-types.js';
-import { createLogger } from './logger.js';
+import {
+  sendChunkedMessage,
+  sendChunkedReply,
+  sendScheduleContent,
+} from '../discord/discord-send.js';
+import { isSendableChannel } from '../discord/discord-types.js';
+import { TIMEZONE } from '../lib/constants.js';
+import { createLogger } from '../lib/logger.js';
 import {
   formatScheduleList,
   type Platform,

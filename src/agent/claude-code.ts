@@ -1,9 +1,9 @@
 import { spawn } from 'node:child_process';
+import { DEFAULT_TIMEOUT_MS } from '../lib/constants.js';
+import { createLogger } from '../lib/logger.js';
 import type { RunOptions, RunResult, StreamCallbacks } from './agent-runner.js';
 import { mergeTexts } from './agent-runner.js';
 import { buildSystemPrompt } from './base-runner.js';
-import { DEFAULT_TIMEOUT_MS } from './constants.js';
-import { createLogger } from './logger.js';
 
 const logger = createLogger('claude-code');
 

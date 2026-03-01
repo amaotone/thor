@@ -1,33 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AgentRunner } from '../src/agent-runner.js';
-import type { Skill } from '../src/skills.js';
+import type { AgentRunner } from '../src/agent/agent-runner.js';
 import {
   buildSlashCommands,
   formatChannelStatus,
   handleAutocomplete,
   handleSlashCommand,
   type SlashCommandDeps,
-} from '../src/slash-commands.js';
+} from '../src/discord/slash-commands.js';
+import type { Skill } from '../src/lib/skills.js';
 
 // Mock settings module
-vi.mock('../src/settings.js', () => ({
+vi.mock('../src/lib/settings.js', () => ({
   loadSettings: vi.fn().mockReturnValue({ autoRestart: false }),
   formatSettings: vi.fn().mockReturnValue('⚙️ Settings'),
   saveSettings: vi.fn(),
 }));
 
 // Mock message-handler
-vi.mock('../src/message-handler.js', () => ({
+vi.mock('../src/discord/message-handler.js', () => ({
   executeSkillCommand: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock schedule-handler
-vi.mock('../src/schedule-handler.js', () => ({
+vi.mock('../src/scheduler/schedule-handler.js', () => ({
   handleScheduleCommand: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { executeSkillCommand } from '../src/message-handler.js';
-import { loadSettings } from '../src/settings.js';
+import { executeSkillCommand } from '../src/discord/message-handler.js';
+import { loadSettings } from '../src/lib/settings.js';
 
 // ─── Test helpers ──────────────────────────────────────────
 function createMockAgentRunner(overrides: Partial<AgentRunner> = {}): AgentRunner {

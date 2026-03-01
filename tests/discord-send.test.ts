@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { sendChunkedMessage, sendChunkedReply, sendScheduleContent } from '../src/discord-send.js';
+import {
+  sendChunkedMessage,
+  sendChunkedReply,
+  sendScheduleContent,
+} from '../src/discord/discord-send.js';
 
 // ─── sendChunkedReply ──────────────────────────────────────
 describe('sendChunkedReply', () => {

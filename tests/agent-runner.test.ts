@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createAgentRunner, mergeTexts } from '../src/agent-runner.js';
+import { createAgentRunner, mergeTexts } from '../src/agent/agent-runner.js';
 
 describe('agent-runner', () => {
   describe('createAgentRunner', () => {

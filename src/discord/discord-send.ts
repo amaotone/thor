@@ -1,6 +1,6 @@
-import { DISCORD_MAX_LENGTH, DISCORD_SAFE_LENGTH } from './constants.js';
-import { splitScheduleContent } from './message-utils.js';
-import { SCHEDULE_SEPARATOR } from './scheduler.js';
+import { DISCORD_MAX_LENGTH, DISCORD_SAFE_LENGTH } from '../lib/constants.js';
+import { splitScheduleContent } from '../lib/message-utils.js';
+import { SCHEDULE_SEPARATOR } from '../scheduler/scheduler.js';
 
 type Replyable = { reply: (content: string) => Promise<unknown> };
 type Sendable = { send: (content: string) => Promise<unknown> };

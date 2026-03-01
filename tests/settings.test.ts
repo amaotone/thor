@@ -8,7 +8,7 @@ import {
   initSettings,
   loadSettings,
   saveSettings,
-} from '../src/settings.js';
+} from '../src/lib/settings.js';
 
 describe('settings', () => {
   let tempDir: string;

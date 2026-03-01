@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getTypeLabel } from '../src/schedule-handler.js';
+import { getTypeLabel } from '../src/scheduler/schedule-handler.js';
 
 // --- Mock dependencies ---
-vi.mock('../src/scheduler.js', () => ({
+vi.mock('../src/scheduler/scheduler.js', () => ({
   parseScheduleInput: vi.fn(),
   formatScheduleList: vi.fn().mockReturnValue('📋 スケジュールはありません'),
   SCHEDULE_SEPARATOR: '{{SPLIT}}',
 }));
 
-vi.mock('../src/discord-types.js', () => ({
+vi.mock('../src/discord/discord-types.js', () => ({
   isSendableChannel: vi.fn().mockReturnValue(true),
 }));
 
@@ -16,8 +16,8 @@ import {
   executeScheduleFromResponse,
   handleScheduleCommand,
   handleScheduleMessage,
-} from '../src/schedule-handler.js';
-import { formatScheduleList, parseScheduleInput } from '../src/scheduler.js';
+} from '../src/scheduler/schedule-handler.js';
+import { formatScheduleList, parseScheduleInput } from '../src/scheduler/scheduler.js';
 
 const mockParseScheduleInput = vi.mocked(parseScheduleInput);
 const mockFormatScheduleList = vi.mocked(formatScheduleList);
