@@ -5,6 +5,7 @@ import {
   BACKOFF_MAX_MS,
   DEFAULT_TIMEOUT_MS,
   MAX_BUFFER_SIZE,
+  SESSION_ID_DISPLAY_LENGTH,
 } from '../lib/constants.js';
 import { createLogger } from '../lib/logger.js';
 import type { AgentRunner, RunOptions, RunResult, StreamCallbacks } from './agent-runner.js';
@@ -107,7 +108,7 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
     const resumeId = this.resumeSessionId || this.sessionId;
     if (resumeId) {
       args.push('--resume', resumeId);
-      logger.info(`Resuming session: ${resumeId.slice(0, 8)}...`);
+      logger.info(`Resuming session: ${resumeId.slice(0, SESSION_ID_DISPLAY_LENGTH)}...`);
     }
 
     args.push('--append-system-prompt', this.systemPrompt);
@@ -226,7 +227,7 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
   }): void {
     if (json.type === 'system' && json.session_id) {
       this.sessionId = json.session_id;
-      logger.info(`Session initialized: ${this.sessionId.slice(0, 8)}...`);
+      logger.info(`Session initialized: ${this.sessionId.slice(0, SESSION_ID_DISPLAY_LENGTH)}...`);
     }
 
     if (json.type === 'assistant' && json.message?.content) {

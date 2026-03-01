@@ -4,7 +4,11 @@ import { handleDiscordCommand } from '../discord/discord-commands.js';
 import { isSendableChannel } from '../discord/discord-types.js';
 import { loadBeadsContext } from '../lib/beads.js';
 import type { Config } from '../lib/config.js';
-import { DISCORD_SAFE_LENGTH } from '../lib/constants.js';
+import {
+  COMMAND_LOG_TRUNCATE_LENGTH,
+  DISCORD_SAFE_LENGTH,
+  ERROR_TRUNCATE_LENGTH,
+} from '../lib/constants.js';
 import { executeCommandsWithFeedback } from '../lib/feedback-loop.js';
 import { extractFilePaths, stripFilePaths } from '../lib/file-utils.js';
 import { createLogger } from '../lib/logger.js';
@@ -41,7 +45,9 @@ export function registerSchedulerHandlers(
     // プロンプト内の !discord send コマンドを先に直接実行
     const parsed = parseAgentResponse(prompt);
     for (const cmd of parsed.commands) {
-      logger.info(`Executing discord command from prompt: ${cmd.slice(0, 80)}...`);
+      logger.info(
+        `Executing discord command from prompt: ${cmd.slice(0, COMMAND_LOG_TRUNCATE_LENGTH)}...`
+      );
       await handleDiscordCommand(cmd, client, undefined, channelId);
     }
 
@@ -111,7 +117,7 @@ export function registerSchedulerHandlers(
         } else if (errorMsg.includes('Circuit breaker')) {
           errorDetail = '🔌 AIプロセスが一時停止中です';
         } else {
-          errorDetail = `❌ エラー: ${errorMsg.slice(0, 200)}`;
+          errorDetail = `❌ エラー: ${errorMsg.slice(0, ERROR_TRUNCATE_LENGTH)}`;
         }
         await thinkingMsg.edit(errorDetail);
       }

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { MAX_FILE_SIZE } from './constants.js';
 import { createLogger } from './logger.js';
 
 const logger = createLogger('file-utils');
@@ -10,8 +11,6 @@ const DOWNLOAD_DIR = path.join(
   'media',
   'attachments'
 );
-
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
 // ダウンロードディレクトリを作成
 if (!fs.existsSync(DOWNLOAD_DIR)) {

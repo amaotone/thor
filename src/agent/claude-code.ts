@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { DEFAULT_TIMEOUT_MS } from '../lib/constants.js';
+import { DEFAULT_TIMEOUT_MS, SESSION_ID_DISPLAY_LENGTH } from '../lib/constants.js';
 import { createLogger } from '../lib/logger.js';
 import type { RunOptions, RunResult, StreamCallbacks } from './agent-runner.js';
 import { mergeTexts } from './agent-runner.js';
@@ -57,7 +57,7 @@ export class ClaudeCodeRunner {
     args.push(prompt);
 
     const sessionInfo = options?.sessionId
-      ? ` (session: ${options.sessionId.slice(0, 8)}...)`
+      ? ` (session: ${options.sessionId.slice(0, SESSION_ID_DISPLAY_LENGTH)}...)`
       : ' (new)';
     logger.info(`Executing in ${this.workdir || 'default dir'}${sessionInfo}`);
 
@@ -159,7 +159,7 @@ export class ClaudeCodeRunner {
     args.push(prompt);
 
     const sessionInfo = options?.sessionId
-      ? ` (session: ${options.sessionId.slice(0, 8)}...)`
+      ? ` (session: ${options.sessionId.slice(0, SESSION_ID_DISPLAY_LENGTH)}...)`
       : ' (new)';
     logger.info(`Streaming in ${this.workdir || 'default dir'}${sessionInfo}`);
 

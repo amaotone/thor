@@ -25,3 +25,21 @@ export const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
 // PersistentRunner 指数バックオフ
 export const BACKOFF_BASE_MS = 1000;
 export const BACKOFF_MAX_MS = 30000;
+
+// 表示用トランケーション
+export const ERROR_TRUNCATE_LENGTH = 200;
+export const SESSION_ID_DISPLAY_LENGTH = 8;
+export const COMMAND_LOG_TRUNCATE_LENGTH = 80;
+
+// Discord オートコンプリート
+export const AUTOCOMPLETE_MAX_RESULTS = 25;
+
+// Discord スラッシュコマンド
+export const SLASH_COMMAND_DESCRIPTION_MAX = 100;
+
+// ファイルサイズ上限
+export const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+
+// 履歴デフォルト
+export const HISTORY_DEFAULT_COUNT = 10;
+export const HISTORY_MAX_COUNT = 100;

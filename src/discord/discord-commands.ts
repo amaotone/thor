@@ -1,5 +1,10 @@
 import type { Client, Message } from 'discord.js';
-import { TIMEZONE } from '../lib/constants.js';
+import {
+  ERROR_TRUNCATE_LENGTH,
+  HISTORY_DEFAULT_COUNT,
+  HISTORY_MAX_COUNT,
+  TIMEZONE,
+} from '../lib/constants.js';
 import { createLogger } from '../lib/logger.js';
 import { chunkDiscordMessage } from '../lib/message-utils.js';
 import { parseAgentResponse } from '../lib/response-parser.js';
@@ -71,7 +76,10 @@ export async function handleDiscordCommand(
     /^!discord\s+history(?:\s+(\d+))?(?:\s+offset:(\d+))?(?:\s+<#(\d+)>)?$/
   );
   if (historyMatch) {
-    const count = Math.min(parseInt(historyMatch[1] || '10', 10), 100);
+    const count = Math.min(
+      parseInt(historyMatch[1] || String(HISTORY_DEFAULT_COUNT), 10),
+      HISTORY_MAX_COUNT
+    );
     const offset = parseInt(historyMatch[2] || '0', 10);
     const targetChannelId = historyMatch[3];
     try {
@@ -108,7 +116,7 @@ export async function handleDiscordCommand(
           .map((m) => {
             const time = m.createdAt.toLocaleString('ja-JP', { timeZone: TIMEZONE });
             const content = (m.content || '(添付ファイルのみ)')
-              .slice(0, 200)
+              .slice(0, ERROR_TRUNCATE_LENGTH)
               .replace(/<#(\d+)>/g, '#$1');
             const attachments =
               m.attachments.size > 0

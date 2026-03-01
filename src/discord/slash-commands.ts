@@ -2,7 +2,12 @@ import type { AutocompleteInteraction, ChatInputCommandInteraction } from 'disco
 import { SlashCommandBuilder } from 'discord.js';
 import type { AgentRunner } from '../agent/agent-runner.js';
 import type { Config } from '../lib/config.js';
-import { DISCORD_SAFE_LENGTH } from '../lib/constants.js';
+import {
+  AUTOCOMPLETE_MAX_RESULTS,
+  DISCORD_SAFE_LENGTH,
+  ERROR_TRUNCATE_LENGTH,
+  SLASH_COMMAND_DESCRIPTION_MAX,
+} from '../lib/constants.js';
 import { createLogger } from '../lib/logger.js';
 import { splitMessage } from '../lib/message-utils.js';
 import { formatSettings, loadSettings } from '../lib/settings.js';
@@ -61,7 +66,7 @@ export async function handleAutocomplete(
         skill.name.toLowerCase().includes(focusedValue) ||
         skill.description.toLowerCase().includes(focusedValue)
     )
-    .slice(0, 25)
+    .slice(0, AUTOCOMPLETE_MAX_RESULTS)
     .map((skill) => ({
       name: `${skill.name} - ${skill.description.slice(0, 50)}`,
       value: skill.name,
@@ -134,7 +139,7 @@ ${
   } catch (error) {
     logger.error('Personalize error:', error);
     const errorMsg = error instanceof Error ? error.message : String(error);
-    await interaction.editReply(`❌ エラー: ${errorMsg.slice(0, 200)}`);
+    await interaction.editReply(`❌ エラー: ${errorMsg.slice(0, ERROR_TRUNCATE_LENGTH)}`);
   }
 }
 
@@ -220,7 +225,7 @@ export function buildSlashCommands(skills: Skill[]): ReturnType<SlashCommandBuil
     commands.push(
       new SlashCommandBuilder()
         .setName(skill.name.toLowerCase().replace(/[^a-z0-9-]/g, '-'))
-        .setDescription(skill.description.slice(0, 100))
+        .setDescription(skill.description.slice(0, SLASH_COMMAND_DESCRIPTION_MAX))
         .addStringOption((option) =>
           option.setName('args').setDescription('引数').setRequired(false)
         )

@@ -5,6 +5,7 @@ import type { Config } from '../lib/config.js';
 import {
   DISCORD_MAX_LENGTH,
   DISCORD_SAFE_LENGTH,
+  ERROR_TRUNCATE_LENGTH,
   STREAM_UPDATE_INTERVAL_MS,
 } from '../lib/constants.js';
 import { executeCommandsWithFeedback } from '../lib/feedback-loop.js';
@@ -61,7 +62,7 @@ export function formatErrorDetail(errorMsg: string, config: Config): string {
   if (errorMsg.includes('Circuit breaker')) {
     return '🔌 AIプロセスが連続でクラッシュしたため一時停止中です。しばらくしてから再試行してください';
   }
-  return `❌ エラーが発生しました: ${errorMsg.slice(0, 200)}`;
+  return `❌ エラーが発生しました: ${errorMsg.slice(0, ERROR_TRUNCATE_LENGTH)}`;
 }
 
 /**
