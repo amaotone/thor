@@ -1,6 +1,6 @@
-import { PersistentRunner } from './persistent-runner.js';
 import type { AgentRunner, RunOptions, RunResult, StreamCallbacks } from './agent-runner.js';
 import type { AgentConfig } from './config.js';
+import { PersistentRunner } from './persistent-runner.js';
 
 /**
  * プール内のランナー情報
@@ -179,6 +179,23 @@ export class RunnerManager implements AgentRunner {
       }
     }
     return false;
+  }
+
+  /**
+   * 指定チャンネルの処理中＋キュー内の全リクエストをキャンセル
+   */
+  cancelAll(channelId?: string): number {
+    if (channelId) {
+      const entry = this.pool.get(channelId);
+      return entry ? entry.runner.cancelAll() : 0;
+    }
+
+    // channelId 未指定: 全ランナーをキャンセル
+    let total = 0;
+    for (const entry of this.pool.values()) {
+      total += entry.runner.cancelAll();
+    }
+    return total;
   }
 
   /**

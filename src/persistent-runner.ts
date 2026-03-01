@@ -1,9 +1,9 @@
-import { spawn, ChildProcess } from 'child_process';
+import { type ChildProcess, spawn } from 'child_process';
 import { EventEmitter } from 'events';
-import type { RunOptions, RunResult, StreamCallbacks, AgentRunner } from './agent-runner.js';
+import type { AgentRunner, RunOptions, RunResult, StreamCallbacks } from './agent-runner.js';
 import { mergeTexts } from './agent-runner.js';
-import { DEFAULT_TIMEOUT_MS } from './constants.js';
 import { buildPersistentSystemPrompt } from './base-runner.js';
+import { DEFAULT_TIMEOUT_MS } from './constants.js';
 
 /**
  * リクエストキューのアイテム
@@ -377,6 +377,22 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
     }
 
     return true;
+  }
+
+  /**
+   * 現在処理中のリクエスト＋キュー内の全リクエストをキャンセル
+   */
+  cancelAll(): number {
+    let cancelled = 0;
+    const error = new Error('Request cancelled by user');
+    for (const item of this.queue) {
+      item.callbacks?.onError?.(error);
+      item.reject(error);
+      cancelled++;
+    }
+    this.queue = [];
+    if (this.cancel()) cancelled++;
+    return cancelled;
   }
 
   /**

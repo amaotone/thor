@@ -1,7 +1,5 @@
-import type { AgentBackend, AgentConfig } from './config.js';
 import { ClaudeCodeRunner } from './claude-code.js';
-import { CodexRunner } from './codex-cli.js';
-import { GeminiRunner } from './gemini-cli.js';
+import type { AgentConfig } from './config.js';
 import { RunnerManager } from './runner-manager.js';
 
 export interface RunOptions {
@@ -29,6 +27,8 @@ export interface AgentRunner {
   runStream(prompt: string, callbacks: StreamCallbacks, options?: RunOptions): Promise<RunResult>;
   /** 現在処理中のリクエストをキャンセル */
   cancel?(channelId?: string): boolean;
+  /** 現在処理中のリクエスト＋キュー内の全リクエストをキャンセル */
+  cancelAll?(channelId?: string): number;
   /** 指定チャンネルのランナーを完全に破棄（/new用） */
   destroy?(channelId: string): boolean;
 }
@@ -36,25 +36,16 @@ export interface AgentRunner {
 /**
  * 設定に基づいてAgentRunnerを作成
  */
-export function createAgentRunner(backend: AgentBackend, config: AgentConfig): AgentRunner {
-  switch (backend) {
-    case 'claude-code':
-      // persistent モードなら RunnerManager を使用（複数チャンネル同時処理）
-      if (config.persistent) {
-        console.log('[agent-runner] Using RunnerManager (multi-channel high-speed mode)');
-        return new RunnerManager(config, {
-          maxProcesses: config.maxProcesses,
-          idleTimeoutMs: config.idleTimeoutMs,
-        });
-      }
-      return new ClaudeCodeRunner(config);
-    case 'codex':
-      return new CodexRunner(config);
-    case 'gemini':
-      return new GeminiRunner(config);
-    default:
-      throw new Error(`Unknown agent backend: ${backend}`);
+export function createAgentRunner(config: AgentConfig): AgentRunner {
+  // persistent モードなら RunnerManager を使用（複数チャンネル同時処理）
+  if (config.persistent) {
+    console.log('[agent-runner] Using RunnerManager (multi-channel high-speed mode)');
+    return new RunnerManager(config, {
+      maxProcesses: config.maxProcesses,
+      idleTimeoutMs: config.idleTimeoutMs,
+    });
   }
+  return new ClaudeCodeRunner(config);
 }
 
 /**
@@ -81,15 +72,6 @@ export function mergeTexts(streamed: string, result: string): string {
 /**
  * バックエンド名を表示用に変換
  */
-export function getBackendDisplayName(backend: AgentBackend): string {
-  switch (backend) {
-    case 'claude-code':
-      return 'Claude Code';
-    case 'codex':
-      return 'Codex';
-    case 'gemini':
-      return 'Gemini';
-    default:
-      return backend;
-  }
+export function getBackendDisplayName(): string {
+  return 'Claude Code';
 }

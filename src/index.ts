@@ -1,38 +1,42 @@
 import {
+  type AutocompleteInteraction,
+  type ChatInputCommandInteraction,
   Client,
-  GatewayIntentBits,
   Events,
+  GatewayIntentBits,
+  type Message,
   REST,
   Routes,
   SlashCommandBuilder,
-  ChatInputCommandInteraction,
-  Message,
-  AutocompleteInteraction,
 } from 'discord.js';
-import { loadConfig } from './config.js';
-import { createAgentRunner, getBackendDisplayName, type AgentRunner } from './agent-runner.js';
+import { join } from 'path';
+import { type AgentRunner, createAgentRunner, getBackendDisplayName } from './agent-runner.js';
 import { ClaudeCodeRunner } from './claude-code.js';
-import { processManager } from './process-manager.js';
-import { loadSkills, formatSkillList, type Skill } from './skills.js';
-import { startSlackBot } from './slack.js';
+import { loadConfig } from './config.js';
 import {
+  DISCORD_MAX_LENGTH,
+  DISCORD_SAFE_LENGTH,
+  MAX_QUEUE_PER_CHANNEL,
+  STREAM_UPDATE_INTERVAL_MS,
+} from './constants.js';
+import {
+  buildPromptWithAttachments,
   downloadFile,
   extractFilePaths,
   stripFilePaths,
-  buildPromptWithAttachments,
 } from './file-utils.js';
-import { initSettings, loadSettings, saveSettings, formatSettings } from './settings.js';
-import { DISCORD_MAX_LENGTH, DISCORD_SAFE_LENGTH, STREAM_UPDATE_INTERVAL_MS } from './constants.js';
+import { processManager } from './process-manager.js';
 import {
-  Scheduler,
-  parseScheduleInput,
   formatScheduleList,
-  SCHEDULE_SEPARATOR,
   type Platform,
+  parseScheduleInput,
+  SCHEDULE_SEPARATOR,
+  Scheduler,
   type ScheduleType,
 } from './scheduler.js';
-import { initSessions, getSession, setSession, deleteSession } from './sessions.js';
-import { join } from 'path';
+import { deleteSession, getSession, initSessions, setSession } from './sessions.js';
+import { formatSettings, initSettings, loadSettings } from './settings.js';
+import { formatSkillList, loadSkills, type Skill } from './skills.js';
 
 /** メッセージを指定文字数で分割（カスタムセパレータ対応、デフォルトは行単位） */
 function splitMessage(text: string, maxLength: number, separator: string = '\n'): string[] {
@@ -90,22 +94,19 @@ function getTypeLabel(
   }
 }
 
-// チャンネルごとの最後に送信したボットメッセージID
-const lastSentMessageIds = new Map<string, string>();
-
 function formatChannelStatus(
   channelId: string,
-  processingChannels: Set<string>,
+  processingChannels: Map<string, number>,
   agentRunner: AgentRunner
 ): string {
-  const busy = processingChannels.has(channelId);
+  const count = processingChannels.get(channelId) ?? 0;
   const running = processManager.isRunning(channelId);
   const pid = processManager.getPid(channelId);
   const sessionId = getSession(channelId);
 
   const lines = ['📊 **現在の実行状態**'];
   lines.push(`- チャンネル: <#${channelId}>`);
-  lines.push(`- 実行ロック: ${busy ? '🔒 処理中' : '🔓 待機中'}`);
+  lines.push(`- 実行ロック: ${count > 0 ? `🔒 ${count}件処理中` : '🔓 待機中'}`);
   lines.push(`- 実行プロセス: ${running ? `✅ 稼働中 (PID: ${pid ?? '-'})` : '⏹️ なし'}`);
   lines.push(`- セッション: ${sessionId ? `✅ ${sessionId.slice(0, 12)}...` : '❌ なし'}`);
 
@@ -135,20 +136,15 @@ function formatChannelStatus(
 async function main() {
   const config = loadConfig();
 
-  // 許可リストの必須チェック（各プラットフォームで1人のみ許可）
+  // 許可リストの必須チェック（1人のみ許可）
   const discordAllowed = config.discord.allowedUsers || [];
-  const slackAllowed = config.slack.allowedUsers || [];
 
-  if (config.discord.enabled && discordAllowed.length === 0) {
-    console.error('[thor] Error: DISCORD_ALLOWED_USER must be set for Discord');
+  if (discordAllowed.length === 0) {
+    console.error('[thor] Error: DISCORD_ALLOWED_USER must be set');
     process.exit(1);
   }
-  if (config.slack.enabled && slackAllowed.length === 0) {
-    console.error('[thor] Error: SLACK_ALLOWED_USER must be set for Slack');
-    process.exit(1);
-  }
-  if (discordAllowed.length > 1 || slackAllowed.length > 1) {
-    console.error('[thor] Error: Only one user per platform is allowed');
+  if (discordAllowed.length > 1) {
+    console.error('[thor] Error: Only one user is allowed');
     console.error('[thor] 利用規約遵守のため、複数ユーザーの設定は禁止です');
     process.exit(1);
   }
@@ -162,8 +158,8 @@ async function main() {
   });
 
   // エージェントランナーを作成
-  const agentRunner = createAgentRunner(config.agent.backend, config.agent.config);
-  const backendName = getBackendDisplayName(config.agent.backend);
+  const agentRunner = createAgentRunner(config.agent.config);
+  const backendName = getBackendDisplayName();
   console.log(`[thor] Using ${backendName} as agent backend`);
 
   // スキルを読み込み
@@ -182,8 +178,8 @@ async function main() {
 
   // セッション永続化を初期化
   initSessions(dataDir);
-  // チャンネル単位の処理中ロック
-  const processingChannels = new Set<string>();
+  // チャンネル単位の処理中カウンター
+  const processingChannels = new Map<string, number>();
 
   // スラッシュコマンド定義
   const commands: ReturnType<SlashCommandBuilder['toJSON']>[] = [
@@ -319,10 +315,13 @@ async function main() {
     }
 
     if (interaction.commandName === 'stop') {
-      const stopped = processManager.stop(channelId) || agentRunner.cancel?.(channelId) || false;
+      const processStopped = processManager.stop(channelId);
+      const cancelledCount = agentRunner.cancelAll?.(channelId) ?? 0;
       processingChannels.delete(channelId);
-      if (stopped) {
-        await interaction.reply('🛑 タスクを停止しました');
+      if (processStopped || cancelledCount > 0) {
+        await interaction.reply(
+          `🛑 タスクを停止しました${cancelledCount > 1 ? `（${cancelledCount}件キャンセル）` : ''}`
+        );
       } else {
         await interaction.reply({ content: '実行中のタスクはありません', ephemeral: true });
       }
@@ -674,7 +673,7 @@ async function main() {
       const offset = parseInt(historyMatch[2] || '0', 10);
       const targetChannelId = historyMatch[3];
       try {
-        let targetChannel;
+        let targetChannel: Awaited<ReturnType<typeof client.channels.fetch>> | null = null;
         if (targetChannelId) {
           targetChannel = await client.channels.fetch(targetChannelId);
         } else if (sourceMessage) {
@@ -745,50 +744,6 @@ async function main() {
       }
     }
 
-    // !discord search <keyword>
-    const searchMatch = text.match(/^!discord\s+search\s+(.+)$/);
-    if (searchMatch) {
-      if (!sourceMessage) {
-        return {
-          handled: true,
-          response: '⚠️ search コマンドはスケジューラーからは使用できません',
-        };
-      }
-      const [, keyword] = searchMatch;
-      try {
-        // 現在のチャンネルで検索
-        const channel = sourceMessage.channel;
-        if ('messages' in channel) {
-          const messages = await channel.messages.fetch({ limit: 100 });
-          const matched = messages.filter((m) =>
-            m.content.toLowerCase().includes(keyword.toLowerCase())
-          );
-          if (matched.size > 0) {
-            const results = matched
-              .first(10)
-              ?.map((m) => {
-                const time = m.createdAt.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
-                return `[${time}] ${m.author.tag}: ${sanitizeChannelMentions(m.content.slice(0, 200))}`;
-              })
-              .join('\n');
-            return {
-              handled: true,
-              feedback: true,
-              response: `🔍 「${keyword}」の検索結果 (${matched.size}件):\n${results}`,
-            };
-          }
-        }
-        return {
-          handled: true,
-          feedback: true,
-          response: `🔍 「${keyword}」に一致するメッセージが見つかりませんでした`,
-        };
-      } catch (err) {
-        console.error(`[thor] Failed to search messages`, err);
-        return { handled: true, response: `❌ 検索に失敗しました` };
-      }
-    }
-
     // !discord delete <messageId or link>
     const deleteMatch = text.match(/^!discord\s+delete\s+(.+)$/);
     if (deleteMatch) {
@@ -814,7 +769,7 @@ async function main() {
         }
 
         // リンクからチャンネルIDが取れた場合はそのチャンネルを使う、なければ現在のチャンネル
-        let channel;
+        let channel: Awaited<ReturnType<typeof client.channels.fetch>> | null = null;
         if (targetChannelId) {
           channel = await client.channels.fetch(targetChannelId);
         } else if (sourceMessage) {
@@ -847,97 +802,6 @@ async function main() {
       } catch (err) {
         console.error(`[thor] Failed to delete message:`, err);
         return { handled: true, feedback: true, response: '❌ メッセージの削除に失敗しました' };
-      }
-    }
-
-    // !discord edit <messageId or link> <newContent>
-    const editMatch = text.match(/^!discord\s+edit\s+(\S+)\s+([\s\S]+)$/);
-    if (editMatch) {
-      const arg = editMatch[1].trim();
-      const newContent = editMatch[2].trim();
-
-      if (!newContent) {
-        return {
-          handled: true,
-          feedback: true,
-          response: '❌ 編集後のメッセージ内容を指定してください',
-        };
-      }
-
-      try {
-        let messageId: string;
-        let targetChannelId: string | undefined;
-
-        if (arg === 'last') {
-          // 直前の自分のメッセージを編集
-          const currentChannelId = sourceMessage?.channel.id || fallbackChannelId;
-          if (!currentChannelId) {
-            return {
-              handled: true,
-              feedback: true,
-              response: '❌ チャンネルが特定できません',
-            };
-          }
-          const lastId = lastSentMessageIds.get(currentChannelId);
-          if (!lastId) {
-            return {
-              handled: true,
-              feedback: true,
-              response:
-                '❌ 直前のメッセージが見つかりません（このセッションでまだ送信していない可能性があります）',
-            };
-          }
-          messageId = lastId;
-        } else {
-          // メッセージリンクからチャンネルIDとメッセージIDを抽出
-          const linkMatch = arg.match(/discord\.com\/channels\/\d+\/(\d+)\/(\d+)/);
-          if (linkMatch) {
-            targetChannelId = linkMatch[1];
-            messageId = linkMatch[2];
-          } else if (/^\d+$/.test(arg)) {
-            messageId = arg;
-          } else {
-            return {
-              handled: true,
-              feedback: true,
-              response: '❌ 無効な形式です。メッセージID、リンク、または last を指定してください',
-            };
-          }
-        }
-
-        // リンクからチャンネルIDが取れた場合はそのチャンネルを使う、なければ現在のチャンネル
-        let channel;
-        if (targetChannelId) {
-          channel = await client.channels.fetch(targetChannelId);
-        } else if (sourceMessage) {
-          channel = sourceMessage.channel;
-        } else if (fallbackChannelId) {
-          channel = await client.channels.fetch(fallbackChannelId);
-        }
-
-        if (channel && 'messages' in channel) {
-          const msg = await channel.messages.fetch(messageId);
-          // 自分のメッセージのみ編集可能
-          if (msg.author.id !== client.user?.id) {
-            return {
-              handled: true,
-              feedback: true,
-              response: '❌ 自分のメッセージのみ編集できます',
-            };
-          }
-          await msg.edit(newContent);
-          const editedChannelId = targetChannelId || sourceMessage?.channel.id || fallbackChannelId;
-          console.log(`[thor] Edited message ${messageId} in channel ${editedChannelId}`);
-          return { handled: true, feedback: true, response: '✏️ メッセージを編集しました' };
-        }
-        return {
-          handled: true,
-          feedback: true,
-          response: '❌ このチャンネルではメッセージを編集できません',
-        };
-      } catch (err) {
-        console.error(`[thor] Failed to edit message:`, err);
-        return { handled: true, feedback: true, response: '❌ メッセージの編集に失敗しました' };
       }
     }
 
@@ -1072,52 +936,7 @@ async function main() {
         }
       }
 
-      // !discord edit の複数行対応
-      const editMatch = trimmed.match(/^!discord\s+edit\s+(\S+)\s*([\s\S]*)/);
-      if (editMatch) {
-        const editTarget = editMatch[1];
-        const firstLineContent = editMatch[2] ?? '';
-        const bodyLines: string[] = firstLineContent ? [firstLineContent] : [];
-        let inEditCodeBlock = false;
-        i++;
-        while (i < lines.length) {
-          const bodyLine = lines[i];
-          if (bodyLine.trim().startsWith('```')) {
-            inEditCodeBlock = !inEditCodeBlock;
-          }
-          if (
-            !inEditCodeBlock &&
-            (bodyLine.trim().startsWith('!discord ') || bodyLine.trim().startsWith('!schedule'))
-          ) {
-            break;
-          }
-          bodyLines.push(bodyLine);
-          i++;
-        }
-        const fullContent = bodyLines.join('\n').trim();
-        if (fullContent) {
-          const commandText = `!discord edit ${editTarget} ${fullContent}`;
-          console.log(
-            `[thor] Processing discord edit from response: ${commandText.slice(0, 50)}...`
-          );
-          const result = await handleDiscordCommand(commandText, sourceMessage, fallbackChannelId);
-          if (result.handled && result.response) {
-            if (result.feedback) {
-              feedbackResults.push(result.response);
-            } else if (sourceMessage) {
-              const channel = sourceMessage.channel;
-              if ('send' in channel && typeof (channel as { send?: unknown }).send === 'function') {
-                await (channel as { send: (content: string) => Promise<unknown> }).send(
-                  result.response
-                );
-              }
-            }
-          }
-        }
-        continue;
-      }
-
-      // その他の !discord コマンド（channels, search, history, delete）
+      // その他の !discord コマンド（channels, history, delete）
       if (trimmed.startsWith('!discord ')) {
         console.log(`[thor] Processing discord command from response: ${trimmed.slice(0, 50)}...`);
         const result = await handleDiscordCommand(trimmed, sourceMessage, fallbackChannelId);
@@ -1172,9 +991,12 @@ async function main() {
       normalizedMessage
     );
 
-    // 同じチャンネルで処理中なら無視（メンション時は除く）
-    if (!isMentioned && processingChannels.has(message.channel.id) && !isControlCommand) {
-      console.log(`[thor] Skipping message in busy channel: ${message.channel.id}`);
+    // キュー上限チェック（メンション・制御コマンドは除く）
+    const currentCount = processingChannels.get(message.channel.id) ?? 0;
+    if (!isMentioned && currentCount >= MAX_QUEUE_PER_CHANNEL && !isControlCommand) {
+      await message.reply(
+        `📥 キューが一杯です（${currentCount}件処理中）。完了までお待ちください。`
+      );
       return;
     }
 
@@ -1191,12 +1013,16 @@ async function main() {
 
     // 停止コマンド
     if (['!stop', 'stop', '/stop'].includes(normalizedPrompt)) {
-      const stopped =
-        processManager.stop(message.channel.id) ||
-        agentRunner.cancel?.(message.channel.id) ||
-        false;
+      const processStopped = processManager.stop(message.channel.id);
+      const cancelledCount = agentRunner.cancelAll?.(message.channel.id) ?? 0;
       processingChannels.delete(message.channel.id);
-      await message.reply(stopped ? '🛑 タスクを停止しました' : '実行中のタスクはありません');
+      if (processStopped || cancelledCount > 0) {
+        await message.reply(
+          `🛑 タスクを停止しました${cancelledCount > 1 ? `（${cancelledCount}件キャンセル）` : ''}`
+        );
+      } else {
+        await message.reply('実行中のタスクはありません');
+      }
       return;
     }
 
@@ -1278,7 +1104,7 @@ async function main() {
 
     const channelId = message.channel.id;
 
-    processingChannels.add(channelId);
+    processingChannels.set(channelId, (processingChannels.get(channelId) ?? 0) + 1);
     try {
       const result = await processPrompt(
         message,
@@ -1312,7 +1138,9 @@ async function main() {
         }
       }
     } finally {
-      processingChannels.delete(channelId);
+      const remaining = (processingChannels.get(channelId) ?? 1) - 1;
+      if (remaining <= 0) processingChannels.delete(channelId);
+      else processingChannels.set(channelId, remaining);
     }
   });
 
@@ -1396,10 +1224,6 @@ async function main() {
         // 2000文字超の応答は分割送信
         const textChunks = splitMessage(displayText, DISCORD_SAFE_LENGTH);
         await thinkingMsg.edit(textChunks[0] || '✅');
-        // 最後に送信したメッセージIDを記録（スケジューラー経由）
-        if ('id' in thinkingMsg) {
-          lastSentMessageIds.set(channelId, (thinkingMsg as { id: string }).id);
-        }
         if (textChunks.length > 1) {
           const ch = channel as { send: (content: string) => Promise<unknown> };
           for (let i = 1; i < textChunks.length; i++) {
@@ -1438,25 +1262,8 @@ async function main() {
     });
   }
 
-  // Slackボットを起動
-  if (config.slack.enabled) {
-    await startSlackBot({
-      config,
-      agentRunner,
-      skills,
-      reloadSkills: () => {
-        skills = loadSkills(workdir);
-        return skills;
-      },
-      scheduler,
-    });
-    console.log('[thor] Slack bot started');
-  }
-
-  if (!config.discord.enabled && !config.slack.enabled) {
-    console.error(
-      '[thor] No chat platform enabled. Set DISCORD_TOKEN or SLACK_BOT_TOKEN/SLACK_APP_TOKEN'
-    );
+  if (!config.discord.enabled) {
+    console.error('[thor] Discord not enabled. Set DISCORD_TOKEN');
     process.exit(1);
   }
 
@@ -1850,10 +1657,6 @@ async function processPrompt(
     // 2000文字超の応答は分割送信
     const chunks = splitMessage(cleanText, DISCORD_SAFE_LENGTH);
     await replyMessage!.edit(chunks[0] || '✅');
-    // 最後に送信したメッセージIDを記録
-    if (replyMessage) {
-      lastSentMessageIds.set(message.channel.id, replyMessage.id);
-    }
     if (chunks.length > 1 && 'send' in message.channel) {
       const channel = message.channel as unknown as {
         send: (content: string) => Promise<unknown>;
@@ -1956,7 +1759,7 @@ async function processPrompt(
 
 /**
  * AIの応答から SYSTEM_COMMAND: を検知して実行
- * 形式: SYSTEM_COMMAND:restart / SYSTEM_COMMAND:set key=value
+ * 形式: SYSTEM_COMMAND:restart
  */
 function handleSettingsFromResponse(text: string): void {
   const commands = text.match(/^SYSTEM_COMMAND:(.+)$/gm);
@@ -1974,16 +1777,6 @@ function handleSettingsFromResponse(text: string): void {
       console.log('[thor] Restart requested by agent, restarting in 1s...');
       setTimeout(() => process.exit(0), 1000);
       return;
-    }
-
-    const setMatch = action.match(/^set\s+(\w+)=(.*)/);
-    if (setMatch) {
-      const [, key, value] = setMatch;
-      if (key === 'autoRestart') {
-        const enabled = value === 'true';
-        saveSettings({ autoRestart: enabled });
-        console.log(`[thor] autoRestart ${enabled ? 'enabled' : 'disabled'} by agent`);
-      }
     }
   }
 }
