@@ -995,7 +995,7 @@ async function main() {
     const currentCount = processingChannels.get(message.channel.id) ?? 0;
     if (!isMentioned && currentCount >= MAX_QUEUE_PER_CHANNEL && !isControlCommand) {
       await message.reply(
-        `📥 同時処理の上限です（${currentCount}件処理中）。完了までお待ちください。`
+        `📥 キューが一杯です（${currentCount}件処理中）。完了までお待ちください。`
       );
       return;
     }

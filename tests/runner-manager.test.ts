@@ -132,7 +132,7 @@ describe('RunnerManager', () => {
     await manager.run('msg2', { channelId: 'ch1' });
 
     const status = manager.getStatus();
-    expect(status.poolSize).toBe(1); // 同じチャンネルでランナーが空いていれば再利用
+    expect(status.poolSize).toBe(1); // 同じチャンネルのランナーを再利用
   });
 
   it('should create separate runners for different channels', async () => {
@@ -273,7 +273,7 @@ describe('RunnerManager', () => {
   it('should cancelAll across multiple runners for a channel', async () => {
     manager = new RunnerManager({ workdir: '/test' }, { maxProcesses: 5 });
 
-    // 同じチャンネルで2つのランナーを使う（1つ目が完了してから2つ目）
+    // 同じチャンネルで2つのリクエストを実行（内部キューで順次処理）
     await manager.run('msg1', { channelId: 'ch1' });
     await manager.run('msg2', { channelId: 'ch1' });
 
