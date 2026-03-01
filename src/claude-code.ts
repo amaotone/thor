@@ -9,7 +9,6 @@ export interface ClaudeCodeOptions {
   model?: string;
   timeoutMs?: number;
   workdir?: string;
-  skipPermissions?: boolean;
 }
 
 interface ClaudeCodeResponse {
@@ -29,24 +28,17 @@ export class ClaudeCodeRunner {
   private model?: string;
   private timeoutMs: number;
   private workdir?: string;
-  private skipPermissions: boolean;
   private systemPrompt: string;
 
   constructor(options?: ClaudeCodeOptions) {
     this.model = options?.model;
     this.timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS; // デフォルト5分
     this.workdir = options?.workdir;
-    this.skipPermissions = options?.skipPermissions ?? false;
     this.systemPrompt = buildSystemPrompt(this.workdir);
   }
 
   async run(prompt: string, options?: RunOptions): Promise<RunResult> {
-    const args: string[] = ['-p', '--output-format', 'json'];
-
-    const skip = options?.skipPermissions ?? this.skipPermissions;
-    if (skip) {
-      args.push('--dangerously-skip-permissions');
-    }
+    const args: string[] = ['-p', '--output-format', 'json', '--dangerously-skip-permissions'];
 
     // セッション継続
     if (options?.sessionId) {
@@ -148,12 +140,13 @@ export class ClaudeCodeRunner {
     callbacks: StreamCallbacks,
     options?: RunOptions
   ): Promise<RunResult> {
-    const args: string[] = ['-p', '--output-format', 'stream-json', '--verbose'];
-
-    const skip = options?.skipPermissions ?? this.skipPermissions;
-    if (skip) {
-      args.push('--dangerously-skip-permissions');
-    }
+    const args: string[] = [
+      '-p',
+      '--output-format',
+      'stream-json',
+      '--verbose',
+      '--dangerously-skip-permissions',
+    ];
 
     if (options?.sessionId) {
       args.push('--resume', options.sessionId);

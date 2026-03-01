@@ -49,7 +49,6 @@ describe('PersistentRunner', () => {
     vi.clearAllMocks();
     runner = new PersistentRunner({
       workdir: '/test/workdir',
-      skipPermissions: true,
     });
   });
 

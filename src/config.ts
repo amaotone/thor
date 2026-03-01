@@ -7,7 +7,6 @@ const AgentConfigSchema = z.object({
   model: z.string().optional(),
   timeoutMs: z.number().int().positive().default(DEFAULT_TIMEOUT_MS),
   workdir: z.string().optional(),
-  skipPermissions: z.boolean().default(false),
   /** 常駐プロセスモード（高速化） */
   persistent: z.boolean().default(true),
   /** 同時実行プロセス数の上限（RunnerManager用） */
@@ -78,7 +77,6 @@ export function loadConfig(): Config {
         model: process.env.AGENT_MODEL || undefined,
         timeoutMs: parseIntEnv(process.env.TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
         workdir: process.env.WORKSPACE_PATH || undefined,
-        skipPermissions: process.env.SKIP_PERMISSIONS === 'true',
         persistent: envBoolTrue(process.env.PERSISTENT_MODE),
         maxProcesses: parseIntEnv(process.env.MAX_PROCESSES, 10),
         idleTimeoutMs: parseIntEnv(process.env.IDLE_TIMEOUT_MS, 30 * 60 * 1000),

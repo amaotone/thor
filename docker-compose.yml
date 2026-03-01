@@ -19,7 +19,6 @@ x-common: &common
     - DISCORD_STREAMING=${DISCORD_STREAMING:-true}
     - DISCORD_SHOW_THINKING=${DISCORD_SHOW_THINKING:-true}
     - WORKSPACE_PATH=/workspace
-    - SKIP_PERMISSIONS=${SKIP_PERMISSIONS:-false}
     # Agent
     - AGENT_MODEL=${AGENT_MODEL:-}
     # Scheduler data directory (for schedules.json)

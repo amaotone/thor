@@ -2,8 +2,8 @@
 
 # thor
 
-thor は Discord で使う個人向け AI アシスタントです。  
-Claude Code / Codex / Gemini CLI をバックエンドとして利用できます。
+thor は Discord で使う個人向け AI アシスタントです。
+Claude Code をバックエンドとして利用します。
 
 ## Minimum Setup
 

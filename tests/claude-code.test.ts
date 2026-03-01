@@ -53,7 +53,7 @@ describe('ClaudeCodeRunner args', () => {
   async function getSpawnArgs(
     runner: ClaudeCodeRunner,
     prompt: string,
-    options?: { sessionId?: string; skipPermissions?: boolean }
+    options?: { sessionId?: string }
   ) {
     const { spawn, getMockProcess } = await import('node:child_process');
 
@@ -98,18 +98,11 @@ describe('ClaudeCodeRunner args', () => {
     expect(args[args.indexOf('--output-format') + 1]).toBe('json');
   });
 
-  it('should include --dangerously-skip-permissions when skipPermissions is true', async () => {
-    const runner = new ClaudeCodeRunner({ skipPermissions: true });
+  it('should always include --dangerously-skip-permissions', async () => {
+    const runner = new ClaudeCodeRunner({});
     const { args } = await getSpawnArgs(runner, 'hello');
 
     expect(args).toContain('--dangerously-skip-permissions');
-  });
-
-  it('should not include --dangerously-skip-permissions when skipPermissions is false', async () => {
-    const runner = new ClaudeCodeRunner({ skipPermissions: false });
-    const { args } = await getSpawnArgs(runner, 'hello');
-
-    expect(args).not.toContain('--dangerously-skip-permissions');
   });
 
   it('should include --resume with sessionId', async () => {
@@ -155,7 +148,6 @@ describe('ClaudeCodeRunner args', () => {
   it('should have correct arg order with all options', async () => {
     const runner = new ClaudeCodeRunner({
       model: 'claude-sonnet-4-5-20250929',
-      skipPermissions: true,
     });
     const { args } = await getSpawnArgs(runner, 'do stuff', { sessionId: 'sess-456' });
 

@@ -21,7 +21,7 @@ describe('parseScheduleInput', () => {
     expect(result?.type).toBe('once');
     expect(result?.message).toBe('ミーティング開始');
     // 30分後
-    const runAt = new Date(result!.runAt);
+    const runAt = new Date(result?.runAt);
     expect(runAt.getTime() - Date.now()).toBeCloseTo(30 * 60 * 1000, -3);
   });
 
@@ -92,7 +92,7 @@ describe('parseScheduleInput', () => {
     expect(result).not.toBeNull();
     expect(result?.type).toBe('once');
     expect(result?.message).toBe('締め切り');
-    const runAt = new Date(result!.runAt);
+    const runAt = new Date(result?.runAt);
     expect(runAt.getFullYear()).toBe(2025);
     expect(runAt.getMonth()).toBe(2); // March = 2
   });

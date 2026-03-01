@@ -3,7 +3,6 @@ import type { AgentConfig } from './config.js';
 import { RunnerManager } from './runner-manager.js';
 
 export interface RunOptions {
-  skipPermissions?: boolean;
   sessionId?: string;
   channelId?: string; // プロセス管理用
 }

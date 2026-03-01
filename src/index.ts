@@ -11,7 +11,6 @@ import {
   SlashCommandBuilder,
 } from 'discord.js';
 import { type AgentRunner, createAgentRunner, getBackendDisplayName } from './agent-runner.js';
-import { ClaudeCodeRunner } from './claude-code.js';
 import { loadConfig } from './config.js';
 import {
   DISCORD_MAX_LENGTH,
@@ -146,13 +145,6 @@ async function main() {
         option.setName('value').setDescription('設定値').setRequired(false)
       )
       .toJSON(),
-    new SlashCommandBuilder()
-      .setName('skip')
-      .setDescription('権限スキップモードで実行')
-      .addStringOption((option) =>
-        option.setName('prompt').setDescription('プロンプト').setRequired(true)
-      )
-      .toJSON(),
     new SlashCommandBuilder().setName('restart').setDescription('プロセスを再起動').toJSON(),
     new SlashCommandBuilder()
       .setName('schedule')
@@ -180,6 +172,21 @@ async function main() {
           .setDescription('スケジュールの有効/無効切替')
           .addStringOption((opt) =>
             opt.setName('id').setDescription('スケジュールID').setRequired(true)
+          )
+      )
+      .toJSON(),
+    new SlashCommandBuilder()
+      .setName('personalize')
+      .setDescription('SOUL.md / USER.md を対話的に作成・編集')
+      .addStringOption((option) =>
+        option
+          .setName('target')
+          .setDescription('編集対象')
+          .setRequired(false)
+          .addChoices(
+            { name: 'both (SOUL.md + USER.md)', value: 'both' },
+            { name: 'soul (ボットの人格)', value: 'soul' },
+            { name: 'user (ユーザー情報)', value: 'user' }
           )
       )
       .toJSON(),
@@ -278,79 +285,6 @@ async function main() {
       return;
     }
 
-    if (interaction.commandName === 'skip') {
-      const prompt = interaction.options.getString('prompt', true);
-      await interaction.deferReply();
-
-      try {
-        const sessionId = getSession(channelId);
-        const runner = new ClaudeCodeRunner(config.agent.config);
-        const runResult = await runner.run(prompt, {
-          skipPermissions: true,
-          sessionId,
-          channelId,
-        });
-
-        setSession(channelId, runResult.sessionId);
-
-        const filePaths = extractFilePaths(runResult.result);
-        const displayText =
-          filePaths.length > 0 ? stripFilePaths(runResult.result) : runResult.result;
-        const cleanText = stripCommandsFromDisplay(displayText);
-
-        const chunks = splitMessage(cleanText, DISCORD_SAFE_LENGTH);
-        await interaction.editReply(chunks[0] || '✅');
-        if (chunks.length > 1 && isSendableChannel(interaction.channel)) {
-          for (let i = 1; i < chunks.length; i++) {
-            await interaction.channel.send(chunks[i]);
-          }
-        }
-
-        // ファイル添付送信
-        if (filePaths.length > 0 && isSendableChannel(interaction.channel)) {
-          try {
-            await interaction.channel.send({
-              files: filePaths.map((fp) => ({ attachment: fp })),
-            });
-            console.log(`[thor] Sent ${filePaths.length} file(s) via /skip`);
-          } catch (err) {
-            console.error('[thor] Failed to send files via /skip:', err);
-          }
-        }
-
-        // SYSTEM_COMMAND処理
-        handleSettingsFromResponse(runResult.result);
-
-        // !discord コマンド処理
-        if (interaction.channel) {
-          const fakeMessage = { channel: interaction.channel } as Message;
-          await handleDiscordCommandsInResponse(
-            runResult.result,
-            client,
-            scheduler,
-            config.scheduler,
-            fakeMessage
-          );
-        }
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        let errorDetail: string;
-        if (errorMsg.includes('timed out')) {
-          errorDetail = '⏱️ タイムアウトしました';
-        } else if (errorMsg.includes('Process exited unexpectedly')) {
-          errorDetail = '💥 AIプロセスが予期せず終了しました';
-        } else if (errorMsg.includes('Circuit breaker')) {
-          errorDetail = '🔌 AIプロセスが一時停止中です';
-        } else {
-          errorDetail = `❌ エラー: ${errorMsg.slice(0, 200)}`;
-        }
-        await interaction.editReply(errorDetail).catch((e) => {
-          console.warn('[thor] Failed to edit reply:', e.message);
-        });
-      }
-      return;
-    }
-
     if (interaction.commandName === 'restart') {
       const settings = loadSettings();
       if (!settings.autoRestart) {
@@ -367,6 +301,11 @@ async function main() {
       return;
     }
 
+    if (interaction.commandName === 'personalize') {
+      await handlePersonalize(interaction, agentRunner, channelId);
+      return;
+    }
+
     if (interaction.commandName === 'skills') {
       skills = loadSkills(workdir);
       await interaction.reply(formatSkillList(skills));
@@ -374,7 +313,7 @@ async function main() {
     }
 
     if (interaction.commandName === 'skill') {
-      await handleSkill(interaction, agentRunner, config, channelId);
+      await handleSkill(interaction, agentRunner, channelId);
       return;
     }
 
@@ -383,7 +322,7 @@ async function main() {
       (s) => s.name.toLowerCase().replace(/[^a-z0-9-]/g, '-') === interaction.commandName
     );
     if (matchedSkill) {
-      await handleSkillCommand(interaction, agentRunner, config, channelId, matchedSkill.name);
+      await handleSkillCommand(interaction, agentRunner, channelId, matchedSkill.name);
       return;
     }
   });
@@ -555,14 +494,6 @@ async function main() {
       return;
     }
 
-    // スキップ設定
-    let skipPermissions = config.agent.config.skipPermissions ?? false;
-
-    if (prompt.startsWith('!skip')) {
-      skipPermissions = true;
-      prompt = prompt.replace(/^!skip\s*/, '').trim();
-    }
-
     // !discord コマンドの処理
     if (prompt.startsWith('!discord')) {
       const result = await handleDiscordCommand(prompt, client, message);
@@ -625,14 +556,7 @@ async function main() {
 
     processingChannels.set(channelId, (processingChannels.get(channelId) ?? 0) + 1);
     try {
-      const result = await processPrompt(
-        message,
-        agentRunner,
-        prompt,
-        skipPermissions,
-        channelId,
-        config
-      );
+      const result = await processPrompt(message, agentRunner, prompt, channelId, config);
 
       // AIの応答から !discord コマンドを検知して実行
       if (result) {
@@ -652,7 +576,6 @@ async function main() {
             message,
             agentRunner,
             feedbackPrompt,
-            skipPermissions,
             channelId,
             config
           );
@@ -717,7 +640,6 @@ async function main() {
       try {
         const sessionId = getSession(channelId);
         const { result, sessionId: newSessionId } = await agentRunner.run(remainingPrompt, {
-          skipPermissions: config.agent.config.skipPermissions ?? false,
           sessionId,
           channelId,
         });
@@ -742,7 +664,6 @@ async function main() {
           );
           const feedbackSession = getSession(channelId);
           const feedbackRun = await agentRunner.run(feedbackPrompt, {
-            skipPermissions: config.agent.config.skipPermissions ?? false,
             sessionId: feedbackSession,
             channelId,
           });
@@ -842,20 +763,16 @@ async function handleAutocomplete(
 async function handleSkill(
   interaction: ChatInputCommandInteraction,
   agentRunner: AgentRunner,
-  config: ReturnType<typeof loadConfig>,
   channelId: string
 ) {
   const skillName = interaction.options.getString('name', true);
   const args = interaction.options.getString('args') || '';
-  const skipPermissions = config.agent.config.skipPermissions ?? false;
-
   await interaction.deferReply();
 
   try {
     const prompt = `スキル「${skillName}」を実行してください。${args ? `引数: ${args}` : ''}`;
     const sessionId = getSession(channelId);
     const { result, sessionId: newSessionId } = await agentRunner.run(prompt, {
-      skipPermissions,
       sessionId,
       channelId,
     });
@@ -875,20 +792,16 @@ async function handleSkill(
 async function handleSkillCommand(
   interaction: ChatInputCommandInteraction,
   agentRunner: AgentRunner,
-  config: ReturnType<typeof loadConfig>,
   channelId: string,
   skillName: string
 ) {
   const args = interaction.options.getString('args') || '';
-  const skipPermissions = config.agent.config.skipPermissions ?? false;
-
   await interaction.deferReply();
 
   try {
     const prompt = `スキル「${skillName}」を実行してください。${args ? `引数: ${args}` : ''}`;
     const sessionId = getSession(channelId);
     const { result, sessionId: newSessionId } = await agentRunner.run(prompt, {
-      skipPermissions,
       sessionId,
       channelId,
     });
@@ -905,11 +818,77 @@ async function handleSkillCommand(
   }
 }
 
+async function handlePersonalize(
+  interaction: ChatInputCommandInteraction,
+  agentRunner: AgentRunner,
+  channelId: string
+) {
+  const target = interaction.options.getString('target') || 'both';
+
+  // 新しいセッションで開始
+  deleteSession(channelId);
+  await interaction.deferReply();
+
+  const targetDesc =
+    target === 'soul'
+      ? 'SOUL.md（ボットの人格・性格）'
+      : target === 'user'
+        ? 'USER.md（ユーザー情報）'
+        : 'SOUL.md（ボットの人格・性格）と USER.md（ユーザー情報）';
+
+  const prompt = `ユーザーが /personalize コマンドを実行しました。${targetDesc}の作成・編集を対話的にサポートしてください。
+
+## あなたのタスク
+
+1. まずワークスペースの既存ファイルを確認してください:
+   - SOUL.md: ボットの人格・口調・価値観を定義するファイル
+   - USER.md: ユーザーの情報・好み・コンテキストを定義するファイル
+
+2. ユーザーに質問しながら、ファイルの内容を一緒に考えてください:
+${
+  target === 'user'
+    ? ''
+    : `   - SOUL.md: どんな口調がいい？（フレンドリー/丁寧/カジュアル等）、性格は？、特別なルールは？
+`
+}${
+  target === 'soul'
+    ? ''
+    : `   - USER.md: ユーザーの名前、興味・関心、よく使う技術、好みのコミュニケーションスタイル等
+`
+}
+3. ユーザーの回答を元にファイルを作成・更新してください。
+
+## 重要なルール
+- 一度に全部聞かず、2-3個ずつ質問してください
+- 既存ファイルがあれば内容を見せて、変更したい部分を聞いてください
+- 最終的にファイルを書き出す前に内容を確認してもらってください
+- Discordで会話しているので、返答は簡潔にしてください`;
+
+  try {
+    const { result, sessionId: newSessionId } = await agentRunner.run(prompt, {
+      sessionId: undefined,
+      channelId,
+    });
+
+    setSession(channelId, newSessionId);
+    const chunks = splitMessage(result, DISCORD_SAFE_LENGTH);
+    await interaction.editReply(chunks[0] || '✅');
+    if (chunks.length > 1 && isSendableChannel(interaction.channel)) {
+      for (let i = 1; i < chunks.length; i++) {
+        await interaction.channel.send(chunks[i]);
+      }
+    }
+  } catch (error) {
+    console.error('[thor] Personalize error:', error);
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    await interaction.editReply(`❌ エラー: ${errorMsg.slice(0, 200)}`);
+  }
+}
+
 async function processPrompt(
   message: Message,
   agentRunner: AgentRunner,
   prompt: string,
-  skipPermissions: boolean,
   channelId: string,
   config: ReturnType<typeof loadConfig>
 ): Promise<string | null> {
@@ -931,24 +910,13 @@ async function processPrompt(
     const useStreaming = config.discord.streaming ?? true;
     const showThinking = config.discord.showThinking ?? true;
 
-    // !skip プレフィックスの場合、ワンショットランナーを使用
-    const defaultSkip = config.agent.config.skipPermissions ?? false;
-    const needsSkipRunner = skipPermissions && !defaultSkip;
-    const runner: AgentRunner = needsSkipRunner
-      ? new ClaudeCodeRunner(config.agent.config)
-      : agentRunner;
-
-    if (needsSkipRunner) {
-      console.log(`[thor] Using one-shot skip runner for channel ${channelId}`);
-    }
-
     // 最初のメッセージを送信
     replyMessage = await message.reply('🤔 考え中.');
 
     let result: string;
     let newSessionId: string;
 
-    if (useStreaming && showThinking && !needsSkipRunner) {
+    if (useStreaming && showThinking) {
       // ストリーミング + 思考表示モード
       let lastUpdateTime = 0;
       let pendingUpdate = false;
@@ -989,7 +957,7 @@ async function processPrompt(
               }
             },
           },
-          { skipPermissions, sessionId, channelId }
+          { sessionId, channelId }
         );
       } finally {
         clearInterval(thinkingInterval);
@@ -997,7 +965,7 @@ async function processPrompt(
       result = streamResult.result;
       newSessionId = streamResult.sessionId;
     } else {
-      // 非ストリーミング or ワンショットskipランナー
+      // 非ストリーミングモード
       let dotCount = 1;
       const thinkingInterval = setInterval(() => {
         dotCount = (dotCount % 3) + 1;
@@ -1008,7 +976,7 @@ async function processPrompt(
       }, 1000);
 
       try {
-        const runResult = await runner.run(prompt, { skipPermissions, sessionId, channelId });
+        const runResult = await agentRunner.run(prompt, { sessionId, channelId });
         result = runResult.result;
         newSessionId = runResult.sessionId;
       } finally {
@@ -1093,7 +1061,6 @@ async function processPrompt(
           const followUpPrompt =
             '先ほどの処理がエラー（タイムアウト等）で中断されました。途中まで行った作業内容と現在の状況を簡潔に報告してください。';
           const followUpResult = await agentRunner.run(followUpPrompt, {
-            skipPermissions,
             sessionId,
             channelId,
           });

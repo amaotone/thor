@@ -41,7 +41,6 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
   private model?: string;
   private timeoutMs: number;
   private workdir?: string;
-  private skipPermissions: boolean;
   private systemPrompt: string;
   private resumeSessionId?: string; // プロセス再起動時に --resume で復元するセッションID
 
@@ -49,7 +48,6 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
     model?: string;
     timeoutMs?: number;
     workdir?: string;
-    skipPermissions?: boolean;
     maxCrashes?: number;
     crashWindowMs?: number;
   }) {
@@ -57,7 +55,6 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
     this.model = options?.model;
     this.timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.workdir = options?.workdir;
-    this.skipPermissions = options?.skipPermissions ?? false;
     this.maxCrashes = options?.maxCrashes ?? 3;
     this.crashWindowMs = options?.crashWindowMs ?? 60000;
     this.systemPrompt = buildPersistentSystemPrompt(this.workdir);
@@ -91,11 +88,8 @@ export class PersistentRunner extends EventEmitter implements AgentRunner {
       '--output-format',
       'stream-json',
       '--verbose',
+      '--dangerously-skip-permissions',
     ];
-
-    if (this.skipPermissions) {
-      args.push('--dangerously-skip-permissions');
-    }
 
     if (this.model) {
       args.push('--model', this.model);
