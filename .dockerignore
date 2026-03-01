@@ -1,0 +1,37 @@
+# Dependencies (installed in container)
+node_modules/
+
+# Build output (built in container)
+dist/
+
+# Config (mounted at runtime)
+.env
+config.yaml
+
+# Git
+.git/
+.gitignore
+
+# Husky (dev only)
+.husky/
+
+# GitHub
+.github/
+
+# IDE
+.idea/
+.vscode/
+
+# Docs
+docs/
+*.md
+!README.md
+
+# Tests
+tests/
+
+# OS
+.DS_Store
+
+# Workspace (mounted at runtime)
+workspace/

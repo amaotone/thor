@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+
+while read local_ref local_sha remote_ref remote_sha
+do
+    if [ "$remote_ref" = "refs/heads/main" ]; then
+        echo ""
+        echo "🚫 main ブランチへの直接 push は禁止されています"
+        echo "   ブランチを作成して PR 経由でマージしてください"
+        echo ""
+        echo "   git checkout -b feature/your-feature"
+        echo "   git push -u origin feature/your-feature"
+        echo "   gh pr create"
+        echo ""
+        exit 1
+    fi
+done
+
+exit 0
