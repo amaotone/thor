@@ -49,6 +49,7 @@ thor is a wrapper that invokes Claude Code from Discord chat. Designed for singl
 - **TDD (t-wada style)**: Write a failing test first, make it pass with minimal code, then refactor. Red → Green → Refactor cycle.
 - **Tidying (Kent Beck style)**: Separate structural changes from behavioral changes. Make tidying commits (rename, extract, reorder) independently from feature/fix commits.
 - **Conventional Commits**: Commit and push at appropriate milestones. Use `feat:`, `fix:`, `refactor:`, `test:`, `chore:`, etc. Keep commits small and focused.
+- **Language**: Write all commit messages and README content in English.
 
 ## System Prompts
 
