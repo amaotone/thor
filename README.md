@@ -19,25 +19,40 @@ It uses Claude Code as its backend.
 - [Docker](https://www.docker.com/) and Docker Compose
 - A Discord bot token ([Discord Developer Portal](https://discord.com/developers/applications))
   - Required intents: `Message Content`, `Server Members`
-- [Claude Code](https://claude.ai/code) installed and authenticated on the host machine (`claude` command must work)
 
-## Minimum Setup
+## Setup
+
+1. 環境変数を設定する
 
 ```bash
 cp .env.example .env
 ```
 
-Set the following in `.env` at minimum:
+`.env` に以下を設定:
 
 ```bash
 DISCORD_TOKEN=your_discord_bot_token
 DISCORD_ALLOWED_USER=123456789012345678
 ```
 
-Start:
+2. コンテナをビルド・起動する
 
 ```bash
 docker compose up thor -d --build
+```
+
+3. Claude Code にログインする（初回のみ）
+
+```bash
+docker compose exec thor claude login
+```
+
+ブラウザ認証の指示が表示されるので、画面に従ってログインしてください。認証情報は Docker ボリューム (`claude-data`) に保存されるため、コンテナを再作成しても再ログインは不要です。
+
+4. ボットを再起動する
+
+```bash
+docker compose restart thor
 ```
 
 ## Core Commands
