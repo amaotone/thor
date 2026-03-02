@@ -22,34 +22,34 @@ It uses Claude Code as its backend.
 
 ## Setup
 
-1. 環境変数を設定する
+1. Configure environment variables
 
 ```bash
 cp .env.example .env
 ```
 
-`.env` に以下を設定:
+Set the following in `.env`:
 
 ```bash
 DISCORD_TOKEN=your_discord_bot_token
 DISCORD_ALLOWED_USER=123456789012345678
 ```
 
-2. コンテナをビルド・起動する
+2. Build and start the container
 
 ```bash
 docker compose up thor -d --build
 ```
 
-3. Claude Code にログインする（初回のみ）
+3. Log in to Claude Code (first time only)
 
 ```bash
 docker compose exec thor claude
 ```
 
-ブラウザ認証の指示が表示されるので、画面に従ってログインしてください。認証情報は Docker ボリューム (`claude-data`) に保存されるため、コンテナを再作成しても再ログインは不要です。
+Follow the browser authentication prompt. Credentials are stored in a Docker volume (`claude-data`), so you won't need to log in again after recreating the container.
 
-4. ボットを再起動する
+4. Restart the bot
 
 ```bash
 docker compose restart thor
