@@ -1,6 +1,8 @@
 # 共通設定
 x-common: &common
   restart: unless-stopped
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
   volumes:
     # Claude Code CLI 認証情報（コンテナ専用ボリューム）
     - claude-data:/home/bun/.claude
@@ -25,6 +27,8 @@ x-common: &common
     - DATA_DIR=/workspace/.thor
     - LOG_LEVEL=${LOG_LEVEL:-info}
     - TIMEZONE=${TIMEZONE:-Asia/Tokyo}
+    # Beads (connect to host Dolt server)
+    - BEADS_DOLT_HOST=host.docker.internal
 
 services:
   # ミニマム版（デフォルト）

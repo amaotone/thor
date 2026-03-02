@@ -33,6 +33,9 @@ RUN bun install --production --frozen-lockfile
 # Copy built files from builder stage
 COPY --from=builder /app/dist ./dist
 
+# Install Dolt (required by Beads CLI)
+RUN curl -L https://github.com/dolthub/dolt/releases/latest/download/install.sh | bash
+
 # Create directories for bun user
 RUN mkdir -p /home/bun/.config/gh && chown -R bun:bun /home/bun/.config
 
