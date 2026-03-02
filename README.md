@@ -44,7 +44,7 @@ docker compose up thor -d --build
 3. Claude Code にログインする（初回のみ）
 
 ```bash
-docker compose exec thor claude login
+docker compose exec thor claude
 ```
 
 ブラウザ認証の指示が表示されるので、画面に従ってログインしてください。認証情報は Docker ボリューム (`claude-data`) に保存されるため、コンテナを再作成しても再ログインは不要です。
