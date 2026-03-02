@@ -2,7 +2,7 @@ import type { Client } from 'discord.js';
 import type { AgentRunner } from '../agent/agent-runner.js';
 import { handleDiscordCommand } from '../discord/discord-commands.js';
 import { isSendableChannel } from '../discord/discord-types.js';
-import { loadBeadsContext } from '../lib/beads.js';
+
 import type { Config } from '../lib/config.js';
 import { COMMAND_LOG_TRUNCATE_LENGTH, DISCORD_SAFE_LENGTH } from '../lib/constants.js';
 import { formatErrorDetail, toErrorMessage } from '../lib/error-utils.js';
@@ -49,17 +49,10 @@ export function registerSchedulerHandlers(
     }
 
     // !discord send 以外のテキストが残っていればAIに渡す
-    let remainingPrompt = parsed.displayText;
+    const remainingPrompt = parsed.displayText;
     if (!remainingPrompt) {
       logger.info('Prompt contained only discord commands, skipping agent');
       return parsed.commands.map((c) => `✅ ${c.slice(0, 50)}`).join('\n');
-    }
-
-    // beads プロジェクト状態をプロンプトに注入
-    const schedWorkdir = config.agent.workdir;
-    const beadsContext = await loadBeadsContext(schedWorkdir);
-    if (beadsContext) {
-      remainingPrompt = `${beadsContext}\n\n${remainingPrompt}`;
     }
 
     try {

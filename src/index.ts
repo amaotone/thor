@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { createAgentRunner } from './agent/agent-runner.js';
 import { registerSchedulerHandlers, setupDiscordClient } from './discord/discord-client.js';
-import { initBeads } from './lib/beads.js';
+
 import { loadConfig } from './lib/config.js';
 import { createLogger } from './lib/logger.js';
 import { initSessions } from './lib/sessions.js';
@@ -32,7 +32,6 @@ async function main() {
 
   // 設定を初期化
   const workdir = config.agent.workdir;
-  await initBeads(workdir);
   initSettings(workdir);
   const initialSettings = loadSettings();
   logger.info(`Settings loaded: autoRestart=${initialSettings.autoRestart}`);

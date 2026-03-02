@@ -1,6 +1,6 @@
 import type { Message } from 'discord.js';
 import type { AgentRunner } from '../agent/agent-runner.js';
-import { loadBeadsContext } from '../lib/beads.js';
+
 import type { Config } from '../lib/config.js';
 import {
   CANCELLED_ERROR_MESSAGE,
@@ -116,13 +116,6 @@ export async function processPrompt(
       'name' in message.channel ? (message.channel as { name: string }).name : null;
     if (channelName) {
       prompt = `[チャンネル: #${channelName} (ID: ${channelId})]\n${prompt}`;
-    }
-
-    // beads プロジェクト状態をプロンプトに注入
-    const workdir = config.agent.workdir;
-    const beadsContext = await loadBeadsContext(workdir);
-    if (beadsContext) {
-      prompt = `${beadsContext}\n\n${prompt}`;
     }
 
     logger.info(`Processing message in channel ${channelId}`);
