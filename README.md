@@ -35,24 +35,19 @@ DISCORD_TOKEN=your_discord_bot_token
 DISCORD_ALLOWED_USER=123456789012345678
 ```
 
-2. Build and start the container
+2. Build the image and log in to Claude Code (first time only)
 
 ```bash
-docker compose up thor -d --build
-```
-
-3. Log in to Claude Code (first time only)
-
-```bash
-docker compose exec thor claude
+docker compose build thor
+docker compose run --rm thor claude
 ```
 
 Follow the browser authentication prompt. Credentials are stored in a Docker volume (`claude-data`), so you won't need to log in again after recreating the container.
 
-4. Restart the bot
+3. Start the bot
 
 ```bash
-docker compose restart thor
+docker compose up thor -d
 ```
 
 ## Core Commands
