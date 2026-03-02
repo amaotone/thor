@@ -13,6 +13,7 @@ export interface RunResult {
 
 export interface StreamCallbacks {
   onText?: (text: string, fullText: string) => void;
+  onProgress?: (toolName: string, toolInput: unknown) => void;
   onComplete?: (result: RunResult) => void;
   onError?: (error: Error) => void;
 }

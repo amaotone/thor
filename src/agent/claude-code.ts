@@ -193,6 +193,9 @@ export class ClaudeCodeRunner {
                   fullText += block.text;
                   callbacks.onText?.(block.text, fullText);
                 }
+                if (block.type === 'tool_use' && block.name) {
+                  callbacks.onProgress?.(block.name, block.input);
+                }
               }
             } else if (json.type === 'result') {
               sessionId = json.session_id;

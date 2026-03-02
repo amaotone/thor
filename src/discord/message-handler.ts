@@ -23,6 +23,36 @@ import { isSendableChannel } from './discord-types.js';
 const logger = createLogger('thor');
 
 /**
+ * ツール呼び出しを進捗表示用の文字列にフォーマットする
+ */
+function formatProgressLine(toolName: string, toolInput: unknown): string {
+  const input = (toolInput ?? {}) as Record<string, unknown>;
+  const truncate = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
+  switch (toolName) {
+    case 'Bash':
+      return `🔧 Bash: \`${truncate(String(input.command ?? ''), 80)}\``;
+    case 'Read':
+      return `📖 Read: \`${input.file_path ?? ''}\``;
+    case 'Write':
+      return `✏️ Write: \`${input.file_path ?? ''}\``;
+    case 'Edit':
+      return `✏️ Edit: \`${input.file_path ?? ''}\``;
+    case 'Grep':
+      return `🔍 Grep: \`${input.pattern ?? ''}\``;
+    case 'Glob':
+      return `🔍 Glob: \`${input.pattern ?? ''}\``;
+    case 'WebFetch':
+      return `🌐 Fetch: \`${truncate(String(input.url ?? ''), 80)}\``;
+    case 'WebSearch':
+      return `🔍 Search: \`${input.query ?? ''}\``;
+    case 'Agent':
+      return `🤖 Agent: ${truncate(String(input.description ?? ''), 60)}`;
+    default:
+      return `🔧 ${toolName}`;
+  }
+}
+
+/**
  * Typing indicator を定期送信するヘルパー
  */
 function startTypingIndicator(channel: { sendTyping: () => Promise<void> }): { stop: () => void } {
@@ -107,16 +137,48 @@ export async function processPrompt(
     let lastUpdateTime = 0;
     let pendingUpdate = false;
     let replyPromise: Promise<Message> | null = null;
+    let streamedText = '';
+    let progressLine = '';
+
+    const buildStreamingContent = (fullText: string, progress: string) => {
+      const base = fullText || progress;
+      if (!base) return '⏳';
+      if (fullText && progress) {
+        return `${fullText}\n\n${progress} ▌`.slice(0, DISCORD_MAX_LENGTH);
+      }
+      return `${base} ▌`.slice(0, DISCORD_MAX_LENGTH);
+    };
+
+    const throttledEdit = (content: string) => {
+      if (!replyMessage) return;
+      const now = Date.now();
+      if (now - lastUpdateTime >= STREAM_UPDATE_INTERVAL_MS && !pendingUpdate) {
+        pendingUpdate = true;
+        lastUpdateTime = now;
+        replyMessage
+          .edit(content)
+          .catch((err) => {
+            logger.warn('Failed to edit message:', err.message);
+          })
+          .finally(() => {
+            pendingUpdate = false;
+          });
+      }
+    };
 
     try {
       const streamResult = await agentRunner.runStream(
         prompt,
         {
           onText: (_chunk, fullText) => {
+            streamedText = fullText;
+            progressLine = ''; // tool_useは一段落したとみなしてクリア
+            const content = buildStreamingContent(fullText, progressLine);
+
             // 初回テキスト到着時にreplyメッセージを作成
             if (!replyMessage && !replyPromise) {
               typing.stop();
-              const promise = message.reply(`${fullText} ▌`.slice(0, DISCORD_MAX_LENGTH));
+              const promise = message.reply(content);
               replyPromise = promise;
               promise
                 .then((msg) => {
@@ -130,19 +192,31 @@ export async function processPrompt(
             }
             if (!replyMessage) return; // reply作成中
 
-            const now = Date.now();
-            if (now - lastUpdateTime >= STREAM_UPDATE_INTERVAL_MS && !pendingUpdate) {
-              pendingUpdate = true;
-              lastUpdateTime = now;
-              replyMessage
-                .edit(`${fullText} ▌`.slice(0, DISCORD_MAX_LENGTH))
-                .catch((err) => {
-                  logger.warn('Failed to edit message:', err.message);
+            throttledEdit(content);
+          },
+          onProgress: (toolName, toolInput) => {
+            progressLine = formatProgressLine(toolName, toolInput);
+            logger.debug(`Tool: ${progressLine}`);
+
+            // replyがまだなければ作成
+            if (!replyMessage && !replyPromise) {
+              typing.stop();
+              const content = buildStreamingContent('', progressLine);
+              const promise = message.reply(content);
+              replyPromise = promise;
+              promise
+                .then((msg) => {
+                  replyMessage = msg;
+                  lastUpdateTime = Date.now();
                 })
-                .finally(() => {
-                  pendingUpdate = false;
+                .catch((err) => {
+                  logger.warn('Failed to create reply:', err.message);
                 });
+              return;
             }
+            if (!replyMessage) return;
+
+            throttledEdit(buildStreamingContent(streamedText, progressLine));
           },
         },
         { channelId }
