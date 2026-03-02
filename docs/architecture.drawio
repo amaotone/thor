@@ -25,7 +25,7 @@
       <mxGeometry x="170" y="360" width="175" height="70" as="geometry" />
     </mxCell>
 
-    <mxCell id="workspace" value="&lt;b&gt;Workspace&lt;/b&gt;&#xa;AGENTS.md / USER.md&#xa;SOUL.md / .beads/ / .thor/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;arcSize=6;" vertex="1" parent="1">
+    <mxCell id="workspace" value="&lt;b&gt;Workspace&lt;/b&gt;&#xa;AGENTS.md / USER.md&#xa;SOUL.md / .thor/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;arcSize=6;" vertex="1" parent="1">
       <mxGeometry x="405" y="360" width="175" height="70" as="geometry" />
     </mxCell>
 

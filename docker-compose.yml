@@ -27,8 +27,6 @@ x-common: &common
     - DATA_DIR=/workspace/.thor
     - LOG_LEVEL=${LOG_LEVEL:-info}
     - TIMEZONE=${TIMEZONE:-Asia/Tokyo}
-    # Beads (connect to host Dolt server)
-    - BEADS_DOLT_HOST=host.docker.internal
 
 services:
   # ミニマム版（デフォルト）

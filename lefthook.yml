@@ -2,12 +2,5 @@ no_auto_install: true
 
 pre-commit:
   commands:
-    beads:
-      run: bd hooks run pre-commit
     lint-staged:
       run: bun run lint-staged
-
-prepare-commit-msg:
-  commands:
-    beads:
-      run: bd hooks run prepare-commit-msg {1} {2} {3}

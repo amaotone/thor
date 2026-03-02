@@ -33,9 +33,6 @@ RUN bun install --production --frozen-lockfile
 # Copy built files from builder stage
 COPY --from=builder /app/dist ./dist
 
-# Install Dolt (required by Beads CLI)
-RUN curl -L https://github.com/dolthub/dolt/releases/latest/download/install.sh | bash
-
 # Create directories for bun user
 RUN mkdir -p /home/bun/.config/gh && chown -R bun:bun /home/bun/.config
 
@@ -45,9 +42,8 @@ USER bun
 # Add ~/.local/bin to PATH before installing CLIs (installers check PATH)
 ENV PATH="/home/bun/.local/bin:${PATH}"
 
-# Install Claude Code CLI and Beads CLI as bun user
-RUN curl -fsSL https://claude.ai/install.sh | bash \
-    && curl -sSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash
+# Install Claude Code CLI as bun user
+RUN curl -fsSL https://claude.ai/install.sh | bash
 
 # Default command
 CMD ["bun", "dist/index.js"]
