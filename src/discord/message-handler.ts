@@ -41,9 +41,10 @@ function startTypingIndicator(channel: { sendTyping: () => Promise<void> }): { s
 async function sendResultToDiscord(
   result: string,
   message: Message | { edit: (content: string) => Promise<unknown> },
-  channel?: { send: (content: string | { files: { attachment: string }[] }) => Promise<unknown> }
+  channel?: { send: (content: string | { files: { attachment: string }[] }) => Promise<unknown> },
+  workdir?: string
 ): Promise<void> {
-  const filePaths = extractFilePaths(result);
+  const filePaths = workdir ? extractFilePaths(result, workdir) : [];
   const displayText = filePaths.length > 0 ? stripFilePaths(result) : result;
   const cleanText = parseAgentResponse(displayText).displayText;
 
@@ -169,7 +170,8 @@ export async function processPrompt(
     await sendResultToDiscord(
       result,
       replyMessage,
-      isSendableChannel(message.channel) ? message.channel : undefined
+      isSendableChannel(message.channel) ? message.channel : undefined,
+      config.agent.workdir
     );
 
     // AIの応答から SYSTEM_COMMAND: を検知して実行

@@ -18,6 +18,17 @@ if (!fs.existsSync(DOWNLOAD_DIR)) {
   fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
 }
 
+const ALLOWED_DOWNLOAD_HOSTS = ['cdn.discordapp.com', 'media.discordapp.net'];
+
+/**
+ * ファイルパスがディレクトリ内に収まっているか判定
+ */
+export function isPathWithinDir(filePath: string, dir: string): boolean {
+  const resolved = path.resolve(filePath);
+  const allowedDir = path.resolve(dir);
+  return resolved.startsWith(allowedDir + path.sep) || resolved === allowedDir;
+}
+
 /**
  * URLからファイルをダウンロードして一時ファイルに保存
  */
@@ -26,6 +37,12 @@ export async function downloadFile(
   filename: string,
   authHeader?: Record<string, string>
 ): Promise<string> {
+  // SSRF防止: 許可ドメインのみ許可
+  const parsedUrl = new URL(url);
+  if (!ALLOWED_DOWNLOAD_HOSTS.includes(parsedUrl.hostname)) {
+    throw new Error(`Download blocked: host '${parsedUrl.hostname}' is not allowed`);
+  }
+
   const sanitized = path.basename(filename).replace(/[^a-zA-Z0-9._-]/g, '_');
   const filePath = path.join(DOWNLOAD_DIR, `${Date.now()}_${sanitized}`);
 
@@ -57,15 +74,16 @@ export async function downloadFile(
 /**
  * Agent結果からファイルパスを抽出
  * パターン: MEDIA:/path/to/file または [ファイル](/path/to/file)
+ * workdir 内のパスのみ許可（ワークスペース外のファイル漏洩を防止）
  */
-export function extractFilePaths(text: string): string[] {
+export function extractFilePaths(text: string, workdir: string): string[] {
   const paths: string[] = [];
 
   // MEDIA:/path/to/file パターン
   const mediaPattern = /MEDIA:\s*([^\s\n]+)/g;
   for (const match of text.matchAll(mediaPattern)) {
     const p = match[1].trim();
-    if (fs.existsSync(p)) {
+    if (isPathWithinDir(p, workdir) && fs.existsSync(p)) {
       paths.push(p);
     }
   }
@@ -75,7 +93,7 @@ export function extractFilePaths(text: string): string[] {
     /(?:^|\s)(\/[^\s]+\.(?:png|jpg|jpeg|gif|webp|mp3|mp4|wav|flac|pdf|zip))/gim;
   for (const match of text.matchAll(absPathPattern)) {
     const p = match[1].trim();
-    if (fs.existsSync(p) && !paths.includes(p)) {
+    if (isPathWithinDir(p, workdir) && fs.existsSync(p) && !paths.includes(p)) {
       paths.push(p);
     }
   }

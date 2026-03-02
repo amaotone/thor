@@ -31,6 +31,19 @@ export async function handleDiscordCommand(
     try {
       const channel = await client.channels.fetch(channelId);
       if (isSendableChannel(channel)) {
+        // ギルド検証: 送信先チャンネルがソースと同じギルドに属するか確認
+        const sourceGuildId =
+          sourceMessage?.guildId ??
+          (fallbackChannelId
+            ? ((await client.channels.fetch(fallbackChannelId)) as { guildId?: string })?.guildId
+            : undefined);
+        const targetGuildId =
+          'guildId' in channel ? (channel as { guildId?: string }).guildId : undefined;
+        if (sourceGuildId && targetGuildId && sourceGuildId !== targetGuildId) {
+          logger.warn(`Cross-guild send blocked: source=${sourceGuildId}, target=${targetGuildId}`);
+          return { handled: true, response: '❌ 異なるサーバーのチャンネルには送信できません' };
+        }
+
         const chunks = chunkDiscordMessage(content);
         for (const chunk of chunks) {
           await channel.send({

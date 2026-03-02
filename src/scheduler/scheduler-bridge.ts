@@ -76,8 +76,8 @@ export function registerSchedulerHandlers(
         },
       });
 
-      // ファイルパス抽出
-      const filePaths = extractFilePaths(result);
+      // ファイルパス抽出（ワークスペース内のみ許可）
+      const filePaths = extractFilePaths(result, config.agent.workdir);
       const displayText = filePaths.length > 0 ? stripFilePaths(result) : result;
 
       // 2000文字超の応答は分割送信
