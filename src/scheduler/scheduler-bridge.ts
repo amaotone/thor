@@ -62,11 +62,6 @@ export function registerSchedulerHandlers(
       remainingPrompt = `${beadsContext}\n\n${remainingPrompt}`;
     }
 
-    // 処理中メッセージを送信
-    const thinkingMsg = (await channel.send('🤔 考え中...')) as {
-      edit: (content: string) => Promise<unknown>;
-    };
-
     try {
       const { result } = await agentRunner.run(remainingPrompt, {
         channelId,
@@ -87,11 +82,8 @@ export function registerSchedulerHandlers(
 
       // 2000文字超の応答は分割送信
       const textChunks = splitMessage(displayText, DISCORD_SAFE_LENGTH);
-      await thinkingMsg.edit(textChunks[0] || '✅');
-      if (textChunks.length > 1) {
-        for (let i = 1; i < textChunks.length; i++) {
-          await channel.send(textChunks[i]);
-        }
+      for (const chunk of textChunks) {
+        await channel.send(chunk);
       }
 
       if (filePaths.length > 0) {
@@ -103,9 +95,9 @@ export function registerSchedulerHandlers(
       return result;
     } catch (error) {
       if (error instanceof Error && error.message === 'Request cancelled by user') {
-        await thinkingMsg.edit('🛑 タスクを停止しました');
+        await channel.send('🛑 タスクを停止しました');
       } else {
-        await thinkingMsg.edit(formatErrorDetail(toErrorMessage(error)));
+        await channel.send(formatErrorDetail(toErrorMessage(error)));
       }
       throw error;
     }
