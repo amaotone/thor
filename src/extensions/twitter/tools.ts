@@ -1,9 +1,9 @@
 import { z } from 'zod/v4';
+import { mcpText, type ToolDefinition } from '../../core/mcp/context.js';
 import type { MemoryDB } from '../../core/memory/memory-db.js';
 import { TWEET_MAX_LENGTH } from '../../core/shared/constants.js';
 import { toErrorMessage } from '../../core/shared/error-utils.js';
 import { createLogger } from '../../core/shared/logger.js';
-import { mcpText, type ToolDefinition } from '../mcp/context.js';
 import type { RateLimiter } from './rate-limiter.js';
 import type { OutputFilter } from './security.js';
 import type { TwitterClient } from './twitter-client.js';

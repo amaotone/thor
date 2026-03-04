@@ -1,5 +1,6 @@
 import { ChannelType, type Client } from 'discord.js';
 import { z } from 'zod/v4';
+import { mcpText, type RunContext, type ToolDefinition } from '../../core/mcp/context.js';
 import {
   DISCORD_MAX_LENGTH,
   ERROR_TRUNCATE_LENGTH,
@@ -10,7 +11,6 @@ import {
 import { toErrorMessage } from '../../core/shared/error-utils.js';
 import { createLogger } from '../../core/shared/logger.js';
 import { splitMessage } from '../../core/shared/message-utils.js';
-import { mcpText, type RunContext, type ToolDefinition } from '../mcp/context.js';
 import {
   isSendableChannel as defaultIsSendableChannel,
   type SendableChannel,

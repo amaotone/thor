@@ -2,6 +2,7 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { RunContext } from '../../core/mcp/context.js';
 import type { MemoryDB } from '../../core/memory/memory-db.js';
 import type {
   AgentRunner,
@@ -16,7 +17,6 @@ import {
   SESSION_ID_DISPLAY_LENGTH,
 } from '../../core/shared/constants.js';
 import { createLogger } from '../../core/shared/logger.js';
-import type { RunContext } from '../mcp/context.js';
 import { buildCliSystemPrompt } from './system-prompt.js';
 
 const logger = createLogger('cli-runner');

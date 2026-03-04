@@ -1,8 +1,8 @@
 import { z } from 'zod/v4';
+import { mcpText, type ToolDefinition } from '../../core/mcp/context.js';
 import type { MemoryDB } from '../../core/memory/memory-db.js';
 import { toErrorMessage } from '../../core/shared/error-utils.js';
 import { createLogger } from '../../core/shared/logger.js';
-import { mcpText, type ToolDefinition } from '../mcp/context.js';
 
 const logger = createLogger('mcp-memory');
 

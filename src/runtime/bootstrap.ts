@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Brain, Priority } from '../core/brain/brain.js';
 import { Heartbeat } from '../core/brain/heartbeat.js';
+import { RunContext } from '../core/mcp/index.js';
 import { MemoryDB } from '../core/memory/memory-db.js';
 import { Scheduler } from '../core/scheduler/scheduler.js';
 import { buildSystemSchedules } from '../core/scheduler/system-schedules.js';
@@ -18,7 +19,6 @@ import {
   registerSchedulerHandlers,
   setupDiscordClient,
 } from '../extensions/discord/index.js';
-import { RunContext, startHttpMcpServer } from '../extensions/mcp/index.js';
 import { createMemoryTools } from '../extensions/memory/index.js';
 import { createScheduleTools } from '../extensions/scheduler/index.js';
 import {
@@ -28,6 +28,7 @@ import {
   RateLimiter,
   TwitterClient,
 } from '../extensions/twitter/index.js';
+import { startHttpMcpServer } from './mcp-server.js';
 
 const logger = createLogger('thor');
 

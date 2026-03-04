@@ -5,4 +5,3 @@ export {
   RunContext,
   type ToolDefinition,
 } from './context.js';
-export { type HttpMcpServer, startHttpMcpServer } from './http-server.js';

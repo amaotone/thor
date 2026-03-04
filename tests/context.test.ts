@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { RunContext } from '../src/extensions/mcp/context.js';
+import { RunContext } from '../src/core/mcp/context.js';
 
 describe('RunContext', () => {
   it('should start with empty channelId', () => {

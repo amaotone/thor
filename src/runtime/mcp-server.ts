@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { createLogger } from '../../core/shared/logger.js';
-import type { ToolDefinition } from './context.js';
+import type { ToolDefinition } from '../core/mcp/context.js';
+import { createLogger } from '../core/shared/logger.js';
 
 const logger = createLogger('mcp-http');
 

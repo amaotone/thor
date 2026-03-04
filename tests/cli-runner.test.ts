@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, jest, mock } from 'bun:tes
 import { EventEmitter } from 'node:events';
 import type { StreamCallbacks } from '../src/core/ports/agent-runner.js';
 import { CliRunner } from '../src/extensions/agent-cli/cli-runner.js';
-import { RunContext } from '../src/extensions/mcp/context.js';
+import { RunContext } from '../src/core/mcp/context.js';
 
 /** Create a mock child process with stdout/stderr as EventEmitters */
 function createMockChild() {

@@ -1,4 +1,5 @@
 import { z } from 'zod/v4';
+import { mcpText, type RunContext, type ToolDefinition } from '../../core/mcp/context.js';
 import { getTypeLabel } from '../../core/scheduler/schedule-formatter.js';
 import {
   formatScheduleList,
@@ -7,7 +8,6 @@ import {
 } from '../../core/scheduler/scheduler.js';
 import { toErrorMessage } from '../../core/shared/error-utils.js';
 import { createLogger } from '../../core/shared/logger.js';
-import { mcpText, type RunContext, type ToolDefinition } from '../mcp/context.js';
 
 const logger = createLogger('mcp-schedule');
 

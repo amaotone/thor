@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
-import { RunContext, type ToolDefinition } from '../src/extensions/mcp/index.js';
+import { RunContext, type ToolDefinition } from '../src/core/mcp/index.js';
 import { createScheduleTools } from '../src/extensions/scheduler/index.js';
 
 function createMockScheduler() {
