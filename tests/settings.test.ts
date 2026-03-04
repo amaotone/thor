@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   clearSettingsCache,
-  formatSettings,
   initSettings,
   loadSettings,
   saveSettings,
@@ -82,19 +81,6 @@ describe('settings', () => {
       saveSettings({ autoRestart: false });
       const loaded = loadSettings();
       expect(loaded.autoRestart).toBe(false);
-    });
-  });
-
-  describe('formatSettings', () => {
-    it('should format settings with ON status', () => {
-      const result = formatSettings({ autoRestart: true });
-      expect(result).toContain('✅ ON');
-      expect(result).toContain('自動再起動');
-    });
-
-    it('should format settings with OFF status', () => {
-      const result = formatSettings({ autoRestart: false });
-      expect(result).toContain('❌ OFF');
     });
   });
 });

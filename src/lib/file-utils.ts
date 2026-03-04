@@ -13,10 +13,8 @@ const DOWNLOAD_DIR = path.join(
   'attachments'
 );
 
-// ダウンロードディレクトリを作成
-if (!fs.existsSync(DOWNLOAD_DIR)) {
-  fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
-}
+// ダウンロードディレクトリを作成（recursive: true は既存でも安全）
+fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
 
 const ALLOWED_DOWNLOAD_HOSTS = ['cdn.discordapp.com', 'media.discordapp.net'];
 

@@ -1,38 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createAgentRunner, mergeTexts } from '../src/agent/agent-runner.js';
+import { mergeTexts } from '../src/agent/agent-runner.js';
 
 describe('agent-runner', () => {
-  describe('createAgentRunner', () => {
-    it('should create a runner instance', () => {
-      const runner = createAgentRunner({ workdir: './workspace', timeoutMs: 300000 });
-      expect(runner).toBeDefined();
-      expect(runner.run).toBeDefined();
-      expect(runner.runStream).toBeDefined();
-    });
-
-    it('should have cancel and cancelAll methods', () => {
-      const runner = createAgentRunner({ workdir: './workspace', timeoutMs: 300000 });
-      expect(runner.cancel).toBeDefined();
-      expect(runner.cancelAll).toBeDefined();
-    });
-
-    it('should have destroy and shutdown methods', () => {
-      const runner = createAgentRunner({ workdir: './workspace', timeoutMs: 300000 });
-      expect(runner.destroy).toBeDefined();
-      expect(runner.shutdown).toBeDefined();
-    });
-
-    it('should have getStatus method', () => {
-      const runner = createAgentRunner({ workdir: './workspace', timeoutMs: 300000 });
-      expect(runner.getStatus).toBeDefined();
-      const status = runner.getStatus?.();
-      expect(status).toHaveProperty('poolSize');
-      expect(status).toHaveProperty('maxProcesses');
-      expect(status).toHaveProperty('channels');
-      runner.shutdown?.();
-    });
-  });
-
   describe('mergeTexts', () => {
     it('should return streamed when result is empty', () => {
       expect(mergeTexts('hello world', '')).toBe('hello world');
@@ -43,32 +12,21 @@ describe('agent-runner', () => {
     });
 
     it('should return streamed when result is a suffix of streamed', () => {
-      // result が streamed の末尾と一致 → 重複なので streamed をそのまま返す
-      const streamed = '!discord send <#123> hello\nfinal answer';
+      const streamed = 'first part\nfinal answer';
       const result = 'final answer';
       expect(mergeTexts(streamed, result)).toBe(streamed);
     });
 
     it('should return result when streamed is a suffix of result', () => {
       const streamed = 'final answer';
-      const result = '!discord send <#123> hello\nfinal answer';
+      const result = 'first part\nfinal answer';
       expect(mergeTexts(streamed, result)).toBe(result);
     });
 
     it('should concatenate when no overlap', () => {
-      // ツール呼び出し前のテキストが streamed にあり、result には最後のテキストだけ
-      const streamed = '!discord send <#123> hello\n調べてみるね...';
-      const result = '調査結果はこちら';
+      const streamed = 'first part';
+      const result = 'second part';
       expect(mergeTexts(streamed, result)).toBe(`${streamed}\n${result}`);
-    });
-
-    it('should handle discord commands in streamed text that are missing from result', () => {
-      // これが問題2の核心ケース
-      const streamed = '!discord send <#work_01> 作業開始します\nツール実行中...\n結果報告';
-      const result = '結果報告';
-      // result は streamed の末尾 → streamed をそのまま返す → !discord send が保持される
-      expect(mergeTexts(streamed, result)).toBe(streamed);
-      expect(mergeTexts(streamed, result)).toContain('!discord send');
     });
 
     it('should handle identical texts', () => {

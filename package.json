@@ -28,6 +28,7 @@
   "author": "amaotone",
   "license": "MIT",
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.66",
     "consola": "^3.4.2",
     "discord.js": "^14.16.3",
     "node-cron": "^4.2.1",

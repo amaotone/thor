@@ -1,12 +1,36 @@
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import { z } from 'zod';
-import { DEFAULT_TIMEOUT_MS } from './constants.js';
+import {
+  DEFAULT_TIMEOUT_MS,
+  HEARTBEAT_IDLE_THRESHOLD_MS,
+  HEARTBEAT_MAX_INTERVAL_MS,
+  HEARTBEAT_MIN_INTERVAL_MS,
+  TRIGGER_EVENING_HOUR,
+  TRIGGER_MORNING_HOUR,
+  TRIGGER_WEEKLY_DAY,
+} from './constants.js';
 
 const AgentConfigSchema = z.object({
   model: z.string().optional(),
   timeoutMs: z.number().int().positive().default(DEFAULT_TIMEOUT_MS),
   workdir: z.string(),
+});
+
+const HeartbeatConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  minIntervalMs: z.number().int().positive().default(HEARTBEAT_MIN_INTERVAL_MS),
+  maxIntervalMs: z.number().int().positive().default(HEARTBEAT_MAX_INTERVAL_MS),
+  idleThresholdMs: z.number().int().positive().default(HEARTBEAT_IDLE_THRESHOLD_MS),
+  channelId: z.string().default(''),
+});
+
+const TriggerConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  morningHour: z.number().int().min(0).max(23).default(TRIGGER_MORNING_HOUR),
+  eveningHour: z.number().int().min(0).max(23).default(TRIGGER_EVENING_HOUR),
+  weeklyDay: z.number().int().min(0).max(6).default(TRIGGER_WEEKLY_DAY),
+  channelId: z.string().default(''),
 });
 
 const ConfigSchema = z.object({
@@ -16,9 +40,13 @@ const ConfigSchema = z.object({
     autoReplyChannels: z.array(z.string()).default([]),
   }),
   agent: AgentConfigSchema,
+  heartbeat: HeartbeatConfigSchema,
+  trigger: TriggerConfigSchema,
 });
 
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
+export type HeartbeatConfig = z.infer<typeof HeartbeatConfigSchema>;
+export type TriggerConfig = z.infer<typeof TriggerConfigSchema>;
 export type Config = z.infer<typeof ConfigSchema>;
 
 /** Resolve a path: expand leading `~` to home directory, then resolve to absolute */
@@ -58,6 +86,23 @@ export function loadConfig(): Config {
       model: process.env.AGENT_MODEL || undefined,
       timeoutMs: parseIntEnv(process.env.TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
       workdir: process.env.WORKSPACE_PATH ? resolvePath(process.env.WORKSPACE_PATH) : './workspace',
+    },
+    heartbeat: {
+      enabled: process.env.HEARTBEAT_ENABLED === 'true',
+      minIntervalMs: parseIntEnv(process.env.HEARTBEAT_MIN_INTERVAL_MS, HEARTBEAT_MIN_INTERVAL_MS),
+      maxIntervalMs: parseIntEnv(process.env.HEARTBEAT_MAX_INTERVAL_MS, HEARTBEAT_MAX_INTERVAL_MS),
+      idleThresholdMs: parseIntEnv(
+        process.env.HEARTBEAT_IDLE_THRESHOLD_MS,
+        HEARTBEAT_IDLE_THRESHOLD_MS
+      ),
+      channelId: process.env.HEARTBEAT_CHANNEL_ID || '',
+    },
+    trigger: {
+      enabled: process.env.TRIGGER_ENABLED === 'true',
+      morningHour: parseIntEnv(process.env.TRIGGER_MORNING_HOUR, TRIGGER_MORNING_HOUR),
+      eveningHour: parseIntEnv(process.env.TRIGGER_EVENING_HOUR, TRIGGER_EVENING_HOUR),
+      weeklyDay: parseIntEnv(process.env.TRIGGER_WEEKLY_DAY, TRIGGER_WEEKLY_DAY),
+      channelId: process.env.TRIGGER_CHANNEL_ID || '',
     },
   };
 

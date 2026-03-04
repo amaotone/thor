@@ -7,7 +7,7 @@ const logger = createLogger('system-commands');
  * AIの応答から SYSTEM_COMMAND: を検知して実行
  * 形式: SYSTEM_COMMAND:restart
  */
-export function handleSettingsFromResponse(text: string): void {
+export function handleSystemCommand(text: string): void {
   const commands = text.match(/^SYSTEM_COMMAND:(.+)$/gm);
   if (!commands) return;
 

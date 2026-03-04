@@ -1,11 +1,17 @@
 import { join } from 'node:path';
-import { createAgentRunner } from './agent/agent-runner.js';
+import { SdkRunner } from './agent/sdk-runner.js';
+import { Brain } from './brain/brain.js';
+import { Heartbeat } from './brain/heartbeat.js';
+import { TriggerManager } from './brain/triggers.js';
+import { isSendableChannel } from './discord/channel-utils.js';
 import { registerSchedulerHandlers, setupDiscordClient } from './discord/discord-client.js';
-
 import { loadConfig } from './lib/config.js';
+import { DISCORD_SAFE_LENGTH } from './lib/constants.js';
 import { createLogger } from './lib/logger.js';
-import { initSessions } from './lib/sessions.js';
+import { splitMessage } from './lib/message-utils.js';
 import { initSettings, loadSettings } from './lib/settings.js';
+import { RunContext } from './mcp/context.js';
+import { createThorMcpServer } from './mcp/server.js';
 import { Scheduler } from './scheduler/scheduler.js';
 
 const logger = createLogger('thor');
@@ -21,14 +27,9 @@ async function main() {
     process.exit(1);
   }
   if (discordAllowed.length > 1) {
-    logger.error('Only one user is allowed');
-    logger.error('利用規約遵守のため、複数ユーザーの設定は禁止です');
+    logger.error('Only one user is allowed (compliance requirement)');
     process.exit(1);
   }
-
-  // エージェントランナーを作成
-  const agentRunner = createAgentRunner(config.agent);
-  logger.info('Using Claude Code as agent backend');
 
   // 設定を初期化
   const workdir = config.agent.workdir;
@@ -36,31 +37,103 @@ async function main() {
   const initialSettings = loadSettings();
   logger.info(`Settings loaded: autoRestart=${initialSettings.autoRestart}`);
 
-  // スケジューラを初期化（ワークスペースの .thor を使用）
+  // スケジューラを初期化
   const dataDir = join(workdir, '.thor');
   const scheduler = new Scheduler(dataDir);
 
-  // セッション永続化を初期化
-  initSessions(dataDir);
+  // Brain は遅延初期化（Discord client が必要）
+  let brain: Brain | null = null;
+  const getBrain = (): Brain => {
+    if (!brain) throw new Error('Brain not yet initialized');
+    return brain;
+  };
 
-  // Discord クライアントをセットアップ
-  const client = setupDiscordClient({ config, agentRunner, scheduler });
+  // Discord クライアントをセットアップ（getBrain で遅延アクセス）
+  const client = setupDiscordClient({ config, getBrain, scheduler });
 
   // Discordボットを起動
   await client.login(config.discord.token);
   logger.info('Discord bot started');
 
+  // Brain を作成（Discord client + Scheduler が必要）
+  const runContext = new RunContext();
+  const mcpServer = createThorMcpServer(client, scheduler, runContext);
+  const runner = new SdkRunner(
+    { model: config.agent.model, timeoutMs: config.agent.timeoutMs, workdir },
+    mcpServer,
+    runContext
+  );
+  brain = new Brain(runner);
+  logger.info('Brain initialized');
+
   // スケジューラにDiscord連携関数を登録
-  registerSchedulerHandlers(scheduler, client, agentRunner, config);
+  registerSchedulerHandlers(scheduler, client, getBrain, config);
 
   // スケジューラの全ジョブを開始
   scheduler.startAll();
 
+  // 自律結果のハンドラ（MCP tools は query 中に実行済みなのでテキスト送信のみ）
+  const sendResultToChannel = async (result: string, channelId: string) => {
+    try {
+      const channel = await client.channels.fetch(channelId);
+      if (isSendableChannel(channel)) {
+        const chunks = splitMessage(result, DISCORD_SAFE_LENGTH);
+        for (const chunk of chunks) {
+          await channel.send(chunk);
+        }
+      }
+    } catch (err) {
+      logger.error('Failed to send result to channel:', err);
+    }
+  };
+
+  // Heartbeat 作成・開始
+  let heartbeat: Heartbeat | null = null;
+  if (config.heartbeat.enabled && config.heartbeat.channelId) {
+    heartbeat = new Heartbeat(getBrain(), {
+      minIntervalMs: config.heartbeat.minIntervalMs,
+      maxIntervalMs: config.heartbeat.maxIntervalMs,
+      idleThresholdMs: config.heartbeat.idleThresholdMs,
+      channelId: config.heartbeat.channelId,
+    });
+    heartbeat.setResultHandler((result, channelId) => {
+      sendResultToChannel(result, channelId).catch((err) => {
+        logger.error('Failed to send heartbeat result:', err);
+      });
+    });
+    heartbeat.start();
+    logger.info('Heartbeat enabled');
+  } else {
+    logger.info('Heartbeat disabled');
+  }
+
+  // TriggerManager 作成・開始
+  let triggerManager: TriggerManager | null = null;
+  if (config.trigger.enabled && config.trigger.channelId) {
+    triggerManager = new TriggerManager(getBrain(), {
+      channelId: config.trigger.channelId,
+      morningHour: config.trigger.morningHour,
+      eveningHour: config.trigger.eveningHour,
+      weeklyDay: config.trigger.weeklyDay,
+    });
+    triggerManager.setResultHandler((result, channelId) => {
+      sendResultToChannel(result, channelId).catch((err) => {
+        logger.error('Failed to send trigger result:', err);
+      });
+    });
+    triggerManager.start();
+    logger.info('Triggers enabled');
+  } else {
+    logger.info('Triggers disabled');
+  }
+
   // グレースフルシャットダウン
   process.on('SIGINT', async () => {
     logger.info('Shutting down...');
+    heartbeat?.stop();
+    triggerManager?.stop();
     scheduler.stopAll();
-    agentRunner.shutdown?.();
+    brain?.shutdown();
     client.destroy();
     process.exit(0);
   });

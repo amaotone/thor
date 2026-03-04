@@ -3,91 +3,20 @@
 Commands, settings, and operational rules specific to thor.
 **Read this at the start of every session.**
 
-## Discord Operation Commands
+## MCP Tools (Discord & Schedule)
 
-**⚠️ `!discord` commands are NOT Bash commands!**
-Write them directly in your response text. Running them with the Bash tool will cause a `command not found` error.
-thor processes text output line by line.
+thor provides MCP tools that you can call directly. These are available as `mcp__thor__*` tools:
 
-**📏 Formatting Rules (all commands):**
-- **Must be at the start of a line** — Each line is trimmed then checked with `startsWith`, so commands written mid-line won't be recognized
-- **Ignored inside code blocks** — Commands within ` ``` ` blocks are not executed (safe for documentation examples)
-- `!discord`, `!schedule`, `SYSTEM_COMMAND:` must all be at the start of a line
-- `MEDIA:` is the exception — it is recognized even mid-line
+- `discord_send` — Send a message to a Discord channel
+- `discord_channels` — List text channels in the current guild
+- `discord_history` — Fetch recent messages from a channel
+- `discord_delete` — Delete a bot message by ID or link
+- `schedule_create` — Create a schedule (cron, one-time, relative)
+- `schedule_list` — List all schedules
+- `schedule_remove` — Remove a schedule by ID
+- `schedule_toggle` — Enable/disable a schedule
 
-### Send a Message to Another Channel
-
-```
-!discord send <#channelID> message content
-```
-
-**Examples:**
-```
-!discord send <#1469606785672417383> hello!
-!discord send <#1466570723639165072> Starting work now
-```
-
-**Notes:**
-- Follow the `<#channelID>` format (wrap with `<#` and `>`)
-- When asked "say XX in YY channel", use this command
-
-### List Channels
-
-```
-!discord channels
-```
-
-### Get Channel History
-
-```
-!discord history [count] [<#channelID>]
-```
-
-Get the latest messages from a channel. **Results are returned to your context, not sent to Discord.**
-
-- Default count is 10, maximum 100
-- If channel ID is omitted, uses the current channel
-- Use `offset:N` to go further back (fetch 30 at a time to prevent timeouts)
-- Each message includes `(ID:messageID)`, which can be used with `!discord delete`
-
-**Examples:**
-```
-!discord history              # Latest 10 messages in current channel
-!discord history 50           # Latest 50 messages in current channel
-!discord history 20 <#1466570723639165072>  # 20 messages from specified channel
-!discord history 30 offset:30   # Get messages 30-60
-!discord history 30 offset:60   # Get messages 60-90
-!discord history 30 offset:30 <#1466570723639165072>  # Go back in another channel
-```
-
-**When fetching large amounts of history (to avoid timeouts):**
-Instead of fetching 100 at once, paginate 30 at a time:
-1. `!discord history 30` → Latest 30 messages
-2. `!discord history 30 offset:30` → Messages 30-60
-3. `!discord history 30 offset:60` → Messages 60-90
-
-**Use cases:**
-- Regain conversation context after a session reset
-- Reference past conversations for decision-making
-- Incrementally fetch a full day's conversation history for journaling
-
-### Delete a Message
-
-```
-!discord delete <messageID>      # Delete a specific message
-!discord delete <messageLink>    # Delete message at link (works across channels)
-```
-
-- A message ID or link is required (cannot be called without arguments)
-- Only your own (bot) messages can be deleted (cannot delete others' messages)
-- Message links use the `https://discord.com/channels/...` format
-
-**⚠️ Important: Deletion steps when a user pastes a message link:**
-1. Do **NOT** run `!discord history` (unnecessary)
-2. Pass the link directly to `!discord delete <link>`
-3. Example: User pastes `https://discord.com/channels/111/222/333` and says "delete it" → `!discord delete https://discord.com/channels/111/222/333`
-
-Only check history for the ID when neither a link nor ID is provided, e.g., "delete the last one."
+Use these tools instead of writing commands in your response text.
 
 ---
 
@@ -120,43 +49,6 @@ Include the following in your response to control the system (must be at the sta
 
 When the user requests a restart, include `SYSTEM_COMMAND:restart`.
 Slash commands `/restart` and `/settings` are also available.
-
-
-## Schedules & Reminders
-
-Use `!schedule` commands to set up reminders and recurring tasks.
-
-### Configuration File
-
-Stored in `.thor/schedules.json`. Can also be edited manually.
-
-### Commands
-
-```
-!schedule add <config>     # Add a schedule
-!schedule list             # List all schedules
-!schedule remove <ID>      # Remove a schedule
-!schedule toggle <ID>      # Enable/disable toggle
-```
-
-### Schedule Format
-
-- `in 30 minutes meeting` — In N minutes (seconds/hours also work)
-- `15:00 review` — At that time today (next day if already past)
-- `2025-03-01 14:00 deadline` — Specific date and time
-- `every day 9:00 good morning` — Daily at a fixed time
-- `every hour check` — At the top of every hour
-- `every Monday 10:00 weekly meeting` — Weekly (Mon-Sun supported)
-- `cron 0 9 * * * good morning` — Direct cron expression
-
-### Sending to Another Channel
-
-Prefix with `-c <#channelID>` or `<#channelID>` to send to a specific channel.
-
-```
-!schedule add -c <#1469606785672417383> in 3 minutes test message
-!schedule add <#1469606785672417383> every day 9:00 good morning
-```
 
 ## Auto-Expansion Features (Read-Only)
 

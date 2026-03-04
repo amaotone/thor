@@ -1,5 +1,4 @@
 import { SCHEDULE_SEPARATOR } from '../scheduler/scheduler.js';
-import { DISCORD_MAX_LENGTH } from './constants.js';
 
 /** メッセージを指定文字数で分割（カスタムセパレータ対応、デフォルトは行単位） */
 export function splitMessage(text: string, maxLength: number, separator = '\n'): string[] {
@@ -17,7 +16,19 @@ export function splitMessage(text: string, maxLength: number, separator = '\n'):
         for (const line of lines) {
           if (current.length + line.length + 1 > maxLength) {
             if (current) chunks.push(current.trim());
-            current = line;
+            // 単一行がmaxLengthを超える場合はハードスプリット
+            if (line.length > maxLength) {
+              for (let j = 0; j < line.length; j += maxLength) {
+                const slice = line.slice(j, j + maxLength);
+                if (j + maxLength < line.length) {
+                  chunks.push(slice);
+                } else {
+                  current = slice;
+                }
+              }
+            } else {
+              current = line;
+            }
           } else {
             current += (current ? '\n' : '') + line;
           }
@@ -38,37 +49,4 @@ export function splitScheduleContent(content: string, maxLength: number): string
   const sep = `\n${SCHEDULE_SEPARATOR}\n`;
   const chunks = splitMessage(content, maxLength, sep);
   return chunks.map((c) => c.replaceAll(SCHEDULE_SEPARATOR, ''));
-}
-
-/**
- * Discord の 2000 文字制限に合わせてメッセージを分割する
- */
-export function chunkDiscordMessage(message: string, limit = DISCORD_MAX_LENGTH): string[] {
-  if (message.length <= limit) return [message];
-
-  const chunks: string[] = [];
-  let buf = '';
-
-  for (const line of message.split('\n')) {
-    if (line.length > limit) {
-      // 1行が limit 超え → バッファをフラッシュしてハードスプリット
-      if (buf) {
-        chunks.push(buf);
-        buf = '';
-      }
-      for (let j = 0; j < line.length; j += limit) {
-        chunks.push(line.slice(j, j + limit));
-      }
-      continue;
-    }
-    const candidate = buf ? `${buf}\n${line}` : line;
-    if (candidate.length > limit) {
-      chunks.push(buf);
-      buf = line;
-    } else {
-      buf = candidate;
-    }
-  }
-  if (buf) chunks.push(buf);
-  return chunks;
 }
