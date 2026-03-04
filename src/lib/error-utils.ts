@@ -15,9 +15,6 @@ export function formatErrorDetail(errorMsg: string, options?: { timeoutLabel?: s
   if (errorMsg.includes('Process exited unexpectedly')) {
     return `💥 AIプロセスが予期せず終了しました: ${errorMsg}`;
   }
-  if (errorMsg.includes('Circuit breaker')) {
-    return '🔌 AIプロセスが連続でクラッシュしたため一時停止中です。しばらくしてから再試行してください';
-  }
   return `❌ エラーが発生しました: ${errorMsg.slice(0, ERROR_TRUNCATE_LENGTH)}`;
 }
 

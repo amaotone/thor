@@ -18,12 +18,6 @@ describe('formatErrorDetail', () => {
     expect(result).toContain('Process exited unexpectedly with code 1');
   });
 
-  it('returns circuit breaker message', () => {
-    const result = formatErrorDetail('Circuit breaker open');
-    expect(result).toContain('🔌');
-    expect(result).toContain('一時停止中');
-  });
-
   it('returns generic error with truncation', () => {
     const longMsg = 'x'.repeat(500);
     const result = formatErrorDetail(longMsg);

@@ -4,8 +4,7 @@
 
 // Discord
 export const DISCORD_MAX_LENGTH = 2000;
-export const DISCORD_SPLIT_MARGIN = 100; // 分割時のマージン
-export const DISCORD_SAFE_LENGTH = DISCORD_MAX_LENGTH - DISCORD_SPLIT_MARGIN; // 1900
+export const DISCORD_SAFE_LENGTH = DISCORD_MAX_LENGTH - 100;
 
 // ストリーミング
 export const STREAM_UPDATE_INTERVAL_MS = 1000;
@@ -22,23 +21,9 @@ export const DEFAULT_TIMEOUT_MS = 300000; // 5分
 // タイムゾーン
 export const TIMEZONE = process.env.TIMEZONE || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-// PersistentRunner バッファ
-export const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
-
-// PersistentRunner 指数バックオフ
-export const BACKOFF_BASE_MS = 1000;
-export const BACKOFF_MAX_MS = 30000;
-
 // 表示用トランケーション
 export const ERROR_TRUNCATE_LENGTH = 200;
 export const SESSION_ID_DISPLAY_LENGTH = 8;
-export const COMMAND_LOG_TRUNCATE_LENGTH = 80;
-
-// Discord オートコンプリート
-export const AUTOCOMPLETE_MAX_RESULTS = 25;
-
-// Discord スラッシュコマンド
-export const SLASH_COMMAND_DESCRIPTION_MAX = 100;
 
 // ファイルサイズ上限
 export const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
@@ -49,4 +34,13 @@ export const HISTORY_MAX_COUNT = 100;
 
 // エラーメッセージ判定
 export const CANCELLED_ERROR_MESSAGE = 'Request cancelled by user';
-export const CIRCUIT_BREAKER_PREFIX = 'Circuit breaker';
+
+// Heartbeat defaults
+export const HEARTBEAT_MIN_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+export const HEARTBEAT_MAX_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
+export const HEARTBEAT_IDLE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+
+// Trigger defaults
+export const TRIGGER_MORNING_HOUR = 8;
+export const TRIGGER_EVENING_HOUR = 22;
+export const TRIGGER_WEEKLY_DAY = 0; // Sunday

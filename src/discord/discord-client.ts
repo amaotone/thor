@@ -1,32 +1,24 @@
 import { Client, Events, GatewayIntentBits, type Message, REST, Routes } from 'discord.js';
-import type { AgentRunner } from '../agent/agent-runner.js';
+import type { Brain } from '../brain/brain.js';
 import type { Config } from '../lib/config.js';
 import { MAX_QUEUE_PER_CHANNEL } from '../lib/constants.js';
 import { buildPromptWithAttachments, downloadFile } from '../lib/file-utils.js';
 import { createLogger } from '../lib/logger.js';
-import { loadSkills, type Skill } from '../lib/skills.js';
-import { handleScheduleMessage } from '../scheduler/schedule-handler.js';
 import type { Scheduler } from '../scheduler/scheduler.js';
-import { handleDiscordCommand } from './discord-commands.js';
+import { processPrompt } from './agent-response.js';
 import {
   annotateChannelMentions,
   fetchChannelMessages,
   fetchDiscordLinkContent,
   fetchReplyContent,
 } from './message-enrichment.js';
-import { handleResponseFeedback, processPrompt } from './message-handler.js';
-import {
-  buildSlashCommands,
-  formatChannelStatus,
-  handleAutocomplete,
-  handleSlashCommand,
-} from './slash-commands.js';
+import { buildSlashCommands, formatChannelStatus, handleSlashCommand } from './slash-commands.js';
 
 const logger = createLogger('discord');
 
 interface DiscordClientDeps {
   config: Config;
-  agentRunner: AgentRunner;
+  getBrain: () => Brain;
   scheduler: Scheduler;
 }
 
@@ -34,8 +26,7 @@ interface DiscordClientDeps {
  * Discord クライアントをセットアップして返す
  */
 export function setupDiscordClient(deps: DiscordClientDeps): Client {
-  const { config, agentRunner, scheduler } = deps;
-  const workdir = config.agent.workdir;
+  const { config, getBrain, scheduler } = deps;
 
   const client = new Client({
     intents: [
@@ -45,13 +36,10 @@ export function setupDiscordClient(deps: DiscordClientDeps): Client {
     ],
   });
 
-  let skills: Skill[] = loadSkills(workdir);
-  logger.info(`Loaded ${skills.length} skills from ${workdir}`);
-
   const processingChannels = new Map<string, number>();
 
   // スラッシュコマンド定義
-  const commands = buildSlashCommands(skills);
+  const commands = buildSlashCommands();
 
   // ClientReady イベント
   client.once(Events.ClientReady, async (c) => {
@@ -71,27 +59,16 @@ export function setupDiscordClient(deps: DiscordClientDeps): Client {
 
   // InteractionCreate イベント
   client.on(Events.InteractionCreate, async (interaction) => {
-    if (interaction.isAutocomplete()) {
-      await handleAutocomplete(interaction, skills);
-      return;
-    }
-
     if (!interaction.isChatInputCommand()) return;
     if (!config.discord.allowedUsers?.includes(interaction.user.id)) return;
 
     const channelId = interaction.channelId;
 
     await handleSlashCommand(interaction, channelId, {
-      agentRunner,
+      brain: getBrain(),
       scheduler,
       config,
-      skills,
       processingChannels,
-      workdir,
-      reloadSkills: () => {
-        skills = loadSkills(workdir);
-        return skills;
-      },
     });
   });
 
@@ -124,9 +101,7 @@ export function setupDiscordClient(deps: DiscordClientDeps): Client {
     // キュー上限チェック（メンション・制御コマンドは除く）
     const currentCount = processingChannels.get(message.channel.id) ?? 0;
     if (!isMentioned && currentCount >= MAX_QUEUE_PER_CHANNEL && !isControlCommand) {
-      await message.reply(
-        `📥 キューが一杯です（${currentCount}件処理中）。完了までお待ちください。`
-      );
+      await message.reply(`Queue full (${currentCount} tasks processing). Please wait.`);
       return;
     }
 
@@ -135,9 +110,8 @@ export function setupDiscordClient(deps: DiscordClientDeps): Client {
       return;
     }
 
-    await handleMessage(message, client, {
-      agentRunner,
-      scheduler,
+    await routeMessage(message, client, {
+      getBrain,
       config,
       processingChannels,
     });
@@ -149,14 +123,14 @@ export function setupDiscordClient(deps: DiscordClientDeps): Client {
 // ─── Message handler ───
 
 interface MessageDeps {
-  agentRunner: AgentRunner;
-  scheduler: Scheduler;
+  getBrain: () => Brain;
   config: Config;
   processingChannels: Map<string, number>;
 }
 
-async function handleMessage(message: Message, client: Client, deps: MessageDeps): Promise<void> {
-  const { agentRunner, scheduler, config, processingChannels } = deps;
+async function routeMessage(message: Message, client: Client, deps: MessageDeps): Promise<void> {
+  const { getBrain, config, processingChannels } = deps;
+  const brain = getBrain();
 
   let prompt = message.content
     .replace(/<@[!&]?\d+>/g, '')
@@ -166,42 +140,19 @@ async function handleMessage(message: Message, client: Client, deps: MessageDeps
 
   // 停止コマンド
   if (['!stop', 'stop', '/stop'].includes(normalizedPrompt)) {
-    const cancelledCount = agentRunner.cancelAll?.(message.channel.id) ?? 0;
+    const cancelledCount = brain.cancelAll();
     processingChannels.delete(message.channel.id);
     if (cancelledCount > 0) {
-      await message.reply(
-        `🛑 タスクを停止しました${cancelledCount > 1 ? `（${cancelledCount}件キャンセル）` : ''}`
-      );
+      await message.reply(`Stopped${cancelledCount > 1 ? ` (${cancelledCount} cancelled)` : ''}`);
     } else {
-      await message.reply('実行中のタスクはありません');
+      await message.reply('No tasks running');
     }
     return;
   }
 
   // 状態確認コマンド
   if (['!status', 'status', '/status'].includes(normalizedPrompt)) {
-    await message.reply(formatChannelStatus(message.channel.id, processingChannels, agentRunner));
-    return;
-  }
-
-  // !discord コマンドの処理
-  if (prompt.startsWith('!discord')) {
-    const result = await handleDiscordCommand(prompt, client, message);
-    if (result.handled) {
-      if (result.feedback && result.response) {
-        prompt = `ユーザーが「${prompt}」を実行しました。以下がその結果です。この情報を踏まえてユーザーに返答してください。\n\n${result.response}`;
-      } else {
-        if (result.response) {
-          await message.reply(result.response);
-        }
-        return;
-      }
-    }
-  }
-
-  // !schedule コマンドの処理
-  if (prompt.startsWith('!schedule')) {
-    await handleScheduleMessage(message, prompt, scheduler, undefined);
+    await message.reply(formatChannelStatus(message.channel.id, processingChannels, brain));
     return;
   }
 
@@ -237,23 +188,15 @@ async function handleMessage(message: Message, client: Client, deps: MessageDeps
   if (!prompt && attachmentPaths.length === 0) return;
 
   // 添付ファイル情報をプロンプトに追加
-  prompt = buildPromptWithAttachments(prompt || '添付ファイルを確認してください', attachmentPaths);
+  prompt = buildPromptWithAttachments(
+    prompt || 'Please check the attached file(s)',
+    attachmentPaths
+  );
 
   const channelId = message.channel.id;
   processingChannels.set(channelId, (processingChannels.get(channelId) ?? 0) + 1);
   try {
-    const result = await processPrompt(message, agentRunner, prompt, channelId, config);
-    if (result) {
-      await handleResponseFeedback(
-        result,
-        message,
-        agentRunner,
-        channelId,
-        config,
-        client,
-        scheduler
-      );
-    }
+    await processPrompt(message, brain, prompt, channelId, config);
   } finally {
     const remaining = (processingChannels.get(channelId) ?? 1) - 1;
     if (remaining <= 0) processingChannels.delete(channelId);
@@ -261,5 +204,4 @@ async function handleMessage(message: Message, client: Client, deps: MessageDeps
   }
 }
 
-// Re-export registerSchedulerHandlers from scheduler-bridge
-export { registerSchedulerHandlers } from '../scheduler/scheduler-bridge.js';
+export { registerSchedulerHandlers } from '../scheduler/scheduler-discord.js';

@@ -1,24 +1,20 @@
 import type { Message } from 'discord.js';
-import type { AgentRunner } from '../agent/agent-runner.js';
+import type { Brain } from '../brain/brain.js';
 
 import type { Config } from '../lib/config.js';
 import {
   CANCELLED_ERROR_MESSAGE,
-  CIRCUIT_BREAKER_PREFIX,
   DISCORD_MAX_LENGTH,
   DISCORD_SAFE_LENGTH,
   STREAM_UPDATE_INTERVAL_MS,
   TYPING_INTERVAL_MS,
 } from '../lib/constants.js';
 import { formatErrorDetail, toErrorMessage } from '../lib/error-utils.js';
-import { executeCommandsWithFeedback } from '../lib/feedback-loop.js';
 import { extractFilePaths, stripFilePaths } from '../lib/file-utils.js';
 import { createLogger } from '../lib/logger.js';
 import { splitMessage } from '../lib/message-utils.js';
-import { parseAgentResponse } from '../lib/response-parser.js';
-import { handleSettingsFromResponse } from '../lib/system-commands.js';
-import type { Scheduler } from '../scheduler/scheduler.js';
-import { isSendableChannel } from './discord-types.js';
+import { handleSystemCommand } from '../lib/system-commands.js';
+import { isSendableChannel } from './channel-utils.js';
 
 const logger = createLogger('thor');
 
@@ -27,28 +23,28 @@ const logger = createLogger('thor');
  */
 function formatProgressLine(toolName: string, toolInput: unknown): string {
   const input = (toolInput ?? {}) as Record<string, unknown>;
-  const truncate = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
+  const truncate = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}...` : s);
   switch (toolName) {
     case 'Bash':
-      return `🔧 Bash: \`${truncate(String(input.command ?? ''), 80)}\``;
+      return `Bash: \`${truncate(String(input.command ?? ''), 80)}\``;
     case 'Read':
-      return `📖 Read: \`${input.file_path ?? ''}\``;
+      return `Read: \`${input.file_path ?? ''}\``;
     case 'Write':
-      return `✏️ Write: \`${input.file_path ?? ''}\``;
+      return `Write: \`${input.file_path ?? ''}\``;
     case 'Edit':
-      return `✏️ Edit: \`${input.file_path ?? ''}\``;
+      return `Edit: \`${input.file_path ?? ''}\``;
     case 'Grep':
-      return `🔍 Grep: \`${input.pattern ?? ''}\``;
+      return `Grep: \`${input.pattern ?? ''}\``;
     case 'Glob':
-      return `🔍 Glob: \`${input.pattern ?? ''}\``;
+      return `Glob: \`${input.pattern ?? ''}\``;
     case 'WebFetch':
-      return `🌐 Fetch: \`${truncate(String(input.url ?? ''), 80)}\``;
+      return `Fetch: \`${truncate(String(input.url ?? ''), 80)}\``;
     case 'WebSearch':
-      return `🔍 Search: \`${input.query ?? ''}\``;
+      return `Search: \`${input.query ?? ''}\``;
     case 'Agent':
-      return `🤖 Agent: ${truncate(String(input.description ?? ''), 60)}`;
+      return `Agent: ${truncate(String(input.description ?? ''), 60)}`;
     default:
-      return `🔧 ${toolName}`;
+      return toolName;
   }
 }
 
@@ -76,10 +72,9 @@ async function sendResultToDiscord(
 ): Promise<void> {
   const filePaths = workdir ? extractFilePaths(result, workdir) : [];
   const displayText = filePaths.length > 0 ? stripFilePaths(result) : result;
-  const cleanText = parseAgentResponse(displayText).displayText;
 
-  const chunks = splitMessage(cleanText, DISCORD_SAFE_LENGTH);
-  await (message as { edit: (content: string) => Promise<unknown> }).edit(chunks[0] || '✅');
+  const chunks = splitMessage(displayText, DISCORD_SAFE_LENGTH);
+  await (message as { edit: (content: string) => Promise<unknown> }).edit(chunks[0] || '(done)');
 
   if (chunks.length > 1 && channel && isSendableChannel(channel)) {
     for (let i = 1; i < chunks.length; i++) {
@@ -104,7 +99,7 @@ async function sendResultToDiscord(
  */
 export async function processPrompt(
   message: Message,
-  agentRunner: AgentRunner,
+  brain: Brain,
   prompt: string,
   channelId: string,
   config: Config
@@ -115,7 +110,7 @@ export async function processPrompt(
     const channelName =
       'name' in message.channel ? (message.channel as { name: string }).name : null;
     if (channelName) {
-      prompt = `[チャンネル: #${channelName} (ID: ${channelId})]\n${prompt}`;
+      prompt = `[Channel: #${channelName} (ID: ${channelId})]\n${prompt}`;
     }
 
     logger.info(`Processing message in channel ${channelId}`);
@@ -135,11 +130,11 @@ export async function processPrompt(
 
     const buildStreamingContent = (fullText: string, progress: string) => {
       const base = fullText || progress;
-      if (!base) return '⏳';
+      if (!base) return '...';
       if (fullText && progress) {
-        return `${fullText}\n\n${progress} ▌`.slice(0, DISCORD_MAX_LENGTH);
+        return `${fullText}\n\n${progress}`.slice(0, DISCORD_MAX_LENGTH);
       }
-      return `${base} ▌`.slice(0, DISCORD_MAX_LENGTH);
+      return base.slice(0, DISCORD_MAX_LENGTH);
     };
 
     const throttledEdit = (content: string) => {
@@ -160,15 +155,14 @@ export async function processPrompt(
     };
 
     try {
-      const streamResult = await agentRunner.runStream(
+      const streamResult = await brain.runStream(
         prompt,
         {
           onText: (_chunk, fullText) => {
             streamedText = fullText;
-            progressLine = ''; // tool_useは一段落したとみなしてクリア
+            progressLine = '';
             const content = buildStreamingContent(fullText, progressLine);
 
-            // 初回テキスト到着時にreplyメッセージを作成
             if (!replyMessage && !replyPromise) {
               typing.stop();
               const promise = message.reply(content);
@@ -183,7 +177,7 @@ export async function processPrompt(
                 });
               return;
             }
-            if (!replyMessage) return; // reply作成中
+            if (!replyMessage) return;
 
             throttledEdit(content);
           },
@@ -191,7 +185,6 @@ export async function processPrompt(
             progressLine = formatProgressLine(toolName, toolInput);
             logger.debug(`Tool: ${progressLine}`);
 
-            // replyがまだなければ作成
             if (!replyMessage && !replyPromise) {
               typing.stop();
               const content = buildStreamingContent('', progressLine);
@@ -212,14 +205,13 @@ export async function processPrompt(
             throttledEdit(buildStreamingContent(streamedText, progressLine));
           },
         },
-        { channelId }
+        { channelId, guildId: message.guildId ?? undefined }
       );
       result = streamResult.result;
     } finally {
       typing.stop();
     }
 
-    // replyが作成中ならその完了を待つ（レースコンディション防止）
     if (!replyMessage && replyPromise) {
       try {
         replyMessage = await replyPromise;
@@ -227,9 +219,8 @@ export async function processPrompt(
         logger.warn('Failed to await pending reply:', (err as Error).message);
       }
     }
-    // テキストが一度も来なかった場合（空応答）のフォールバック
     if (!replyMessage) {
-      replyMessage = await message.reply('✅');
+      replyMessage = await message.reply('(done)');
     }
 
     logger.info(`Response length: ${result.length}`);
@@ -241,14 +232,13 @@ export async function processPrompt(
       config.agent.workdir
     );
 
-    // AIの応答から SYSTEM_COMMAND: を検知して実行
-    handleSettingsFromResponse(result);
+    handleSystemCommand(result);
 
     return result;
   } catch (error) {
     if (error instanceof Error && error.message === CANCELLED_ERROR_MESSAGE) {
       logger.info('Request cancelled by user');
-      await replyMessage?.edit('🛑 停止しました').catch((e) => {
+      await replyMessage?.edit('Stopped').catch((e) => {
         logger.warn('Failed to edit cancel message:', e.message);
       });
       return null;
@@ -256,7 +246,7 @@ export async function processPrompt(
     logger.error('Error:', error);
 
     const errorMsg = toErrorMessage(error);
-    const timeoutLabel = `${Math.round((config.agent.timeoutMs ?? 300000) / 1000)}秒`;
+    const timeoutLabel = `${Math.round((config.agent.timeoutMs ?? 300000) / 1000)}s`;
     const errorDetail = formatErrorDetail(errorMsg, { timeoutLabel });
 
     if (replyMessage) {
@@ -268,88 +258,34 @@ export async function processPrompt(
         logger.warn('Failed to reply error message:', e.message);
       });
     }
-
-    // エラー後にエージェントへ自動フォローアップ（サーキットブレーカー時は除く）
-    if (!errorMsg.includes(CIRCUIT_BREAKER_PREFIX)) {
-      try {
-        logger.info('Sending error follow-up to agent');
-        const hasSession = agentRunner.getSessionId?.(channelId);
-        if (hasSession) {
-          const followUpPrompt =
-            '先ほどの処理がエラー（タイムアウト等）で中断されました。途中まで行った作業内容と現在の状況を簡潔に報告してください。';
-          const followUpResult = await agentRunner.run(followUpPrompt, {
-            channelId,
-          });
-          if (followUpResult.result) {
-            const followUpText = followUpResult.result.slice(0, DISCORD_SAFE_LENGTH);
-            if (isSendableChannel(message.channel)) {
-              await message.channel.send(`📋 **エラー前の作業報告:**\n${followUpText}`);
-            }
+    try {
+      logger.info('Sending error follow-up to agent');
+      const sessionId = brain.getSessionId();
+      if (sessionId) {
+        const followUpPrompt =
+          'The previous request was interrupted by an error (timeout etc). Please briefly report what work was done and the current state.';
+        const followUpResult = await brain.run(followUpPrompt, {
+          channelId,
+          guildId: message.guildId ?? undefined,
+        });
+        if (followUpResult.result) {
+          const followUpText = followUpResult.result.slice(0, DISCORD_SAFE_LENGTH);
+          if (isSendableChannel(message.channel)) {
+            await message.channel.send(`**Error report:**\n${followUpText}`);
           }
         }
-      } catch (followUpError) {
-        logger.error('Error follow-up failed:', followUpError);
       }
+    } catch (followUpError) {
+      logger.error('Error follow-up failed:', followUpError);
     }
 
     return null;
   } finally {
-    // 👀 リアクションを削除
     await message.reactions.cache
       .find((r) => r.emoji.name === '👀')
       ?.users.remove(message.client.user?.id)
       .catch((err) => {
         logger.warn('Failed to remove reaction:', err.message || err);
       });
-  }
-}
-
-/**
- * AI応答内の !discord / !schedule コマンドを処理し、フィードバック結果をエージェントに再注入する
- */
-export async function handleResponseFeedback(
-  result: string,
-  message: Message,
-  agentRunner: AgentRunner,
-  channelId: string,
-  config: Config,
-  client: import('discord.js').Client,
-  scheduler: Scheduler
-): Promise<void> {
-  await executeCommandsWithFeedback(result, client, scheduler, {
-    sourceMessage: message,
-    runAgent: async (prompt) => {
-      const feedbackResult = await processPrompt(message, agentRunner, prompt, channelId, config);
-      return feedbackResult ?? '';
-    },
-  });
-}
-
-/**
- * スキルコマンドを実行する（/skill と 個別スキルコマンドの共通処理）
- */
-export async function executeSkillCommand(
-  interaction: import('discord.js').ChatInputCommandInteraction,
-  agentRunner: AgentRunner,
-  channelId: string,
-  skillName: string,
-  args: string
-): Promise<void> {
-  await interaction.deferReply();
-
-  try {
-    const prompt = `スキル「${skillName}」を実行してください。${args ? `引数: ${args}` : ''}`;
-    const { result } = await agentRunner.run(prompt, {
-      channelId,
-    });
-
-    const chunks = splitMessage(result, DISCORD_SAFE_LENGTH);
-    await interaction.editReply(chunks[0] || '✅');
-    for (let i = 1; i < chunks.length; i++) {
-      await interaction.followUp(chunks[i]);
-    }
-  } catch (error) {
-    logger.error('Error:', error);
-    await interaction.editReply('エラーが発生しました');
   }
 }

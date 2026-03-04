@@ -71,14 +71,6 @@ export function saveSettings(settings: Partial<Settings>): Settings {
 }
 
 /**
- * 設定をフォーマットして表示用文字列を返す
- */
-export function formatSettings(settings: Settings): string {
-  const lines = ['⚙️ **現在の設定**', `- 自動再起動: ${settings.autoRestart ? '✅ ON' : '❌ OFF'}`];
-  return lines.join('\n');
-}
-
-/**
  * キャッシュをクリア（テスト用）
  */
 export function clearSettingsCache(): void {

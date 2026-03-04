@@ -1,9 +1,7 @@
-import type { AgentConfig } from '../lib/config.js';
-import { RunnerManager } from './runner-manager.js';
-
 export interface RunOptions {
   sessionId?: string;
-  channelId?: string; // プロセス管理用
+  channelId?: string;
+  guildId?: string;
 }
 
 export interface RunResult {
@@ -21,18 +19,6 @@ export interface StreamCallbacks {
 /**
  * AIエージェントランナーの統一インターフェース
  */
-export interface ChannelStatus {
-  channelId: string;
-  idleSeconds: number;
-  alive: boolean;
-}
-
-export interface RunnerStatus {
-  poolSize: number;
-  maxProcesses: number;
-  channels: ChannelStatus[];
-}
-
 export interface AgentRunner {
   run(prompt: string, options?: RunOptions): Promise<RunResult>;
   runStream(prompt: string, callbacks: StreamCallbacks, options?: RunOptions): Promise<RunResult>;
@@ -40,23 +26,8 @@ export interface AgentRunner {
   cancel?(channelId?: string): boolean;
   /** 現在処理中のリクエスト＋キュー内の全リクエストをキャンセル */
   cancelAll?(channelId?: string): number;
-  /** 指定チャンネルのランナーを完全に破棄（/new用） */
-  destroy?(channelId: string): boolean;
   /** シャットダウン */
   shutdown?(): void;
-  /** ランナープールの状態を取得 */
-  getStatus?(): RunnerStatus;
-  /** 指定チャンネルのセッションIDを取得 */
-  getSessionId?(channelId: string): string | undefined;
-  /** 指定チャンネルのセッションをクリア */
-  deleteSession?(channelId: string): void;
-}
-
-/**
- * 設定に基づいてAgentRunnerを作成
- */
-export function createAgentRunner(config: AgentConfig): AgentRunner {
-  return new RunnerManager(config);
 }
 
 /**
