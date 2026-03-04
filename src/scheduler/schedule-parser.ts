@@ -1,4 +1,34 @@
+import { TIMEZONE } from '../lib/constants.js';
 import type { ScheduleType } from './scheduler.js';
+
+/** TIMEZONE での現在時刻の時・分を取得する */
+function getLocalTime(date: Date): { hours: number; minutes: number } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: TIMEZONE,
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false,
+  }).formatToParts(date);
+  const hours = parseInt(parts.find((p) => p.type === 'hour')?.value ?? '0', 10);
+  const minutes = parseInt(parts.find((p) => p.type === 'minute')?.value ?? '0', 10);
+  return { hours, minutes };
+}
+
+/** TIMEZONE でのローカル日時から Date を生成する */
+function localToDate(dateStr: string, hour: number, min: number): Date {
+  // 一旦 TIMEZONE のオフセットを動的に計算
+  const refDate = new Date(`${dateStr}T12:00:00Z`);
+  const utcStr = refDate.toLocaleString('en-US', { timeZone: 'UTC', hour12: false });
+  const localStr = refDate.toLocaleString('en-US', { timeZone: TIMEZONE, hour12: false });
+  const utcMs = new Date(utcStr).getTime();
+  const localMs = new Date(localStr).getTime();
+  const offsetMs = localMs - utcMs;
+  // ローカル時刻を UTC に変換
+  const localTarget = new Date(
+    `${dateStr}T${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}:00Z`
+  );
+  return new Date(localTarget.getTime() - offsetMs);
+}
 
 /**
  * 自然言語風の入力をパースしてスケジュールパラメータに変換
@@ -119,14 +149,10 @@ export function parseScheduleInput(input: string): {
     const hour = parseInt(timeMatch[1], 10);
     const min = parseInt(timeMatch[2], 10);
     const now = new Date();
-    // Asia/Tokyo で設定
-    const jstOffset = 9 * 60; // JST = UTC+9
-    const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
-    const jstMinutes = utcMinutes + jstOffset;
+    const local = getLocalTime(now);
     const targetMinutes = hour * 60 + min;
-    // JSTベースで今日か明日かを判定
-    const currentJstMinutes = jstMinutes % (24 * 60);
-    let diffMinutes = targetMinutes - currentJstMinutes;
+    const currentMinutes = local.hours * 60 + local.minutes;
+    let diffMinutes = targetMinutes - currentMinutes;
     if (diffMinutes <= 0) {
       diffMinutes += 24 * 60; // 明日
     }
@@ -144,10 +170,7 @@ export function parseScheduleInput(input: string): {
     const dateStr = dateTimeMatch[1];
     const hour = parseInt(dateTimeMatch[2], 10);
     const min = parseInt(dateTimeMatch[3], 10);
-    // JST として解釈
-    const runAt = new Date(
-      `${dateStr}T${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}:00+09:00`
-    );
+    const runAt = localToDate(dateStr, hour, min);
     return {
       type: 'once',
       runAt: runAt.toISOString(),
