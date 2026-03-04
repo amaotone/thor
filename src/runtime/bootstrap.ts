@@ -17,10 +17,14 @@ import {
   registerSchedulerHandlers,
   setupDiscordClient,
 } from '../extensions/discord/discord-client.js';
+import { createDiscordTools } from '../extensions/discord/tools.js';
 import { RunContext } from '../extensions/mcp/context.js';
-import { startThorMcpServer } from '../extensions/mcp/server.js';
+import { startHttpMcpServer } from '../extensions/mcp/http-server.js';
+import { createMemoryTools } from '../extensions/memory/tools.js';
+import { createScheduleTools } from '../extensions/scheduler/tools.js';
 import { RateLimiter } from '../extensions/twitter/rate-limiter.js';
 import { InputSanitizer, OutputFilter } from '../extensions/twitter/security.js';
+import { createTwitterTools } from '../extensions/twitter/tools.js';
 import { TwitterClient } from '../extensions/twitter/twitter-client.js';
 
 const logger = createLogger('thor');
@@ -115,16 +119,15 @@ export async function bootstrap(): Promise<void> {
   // HTTP MCP サーバーを起動
   const runContext = new RunContext();
   const mcpPort = parseInt(process.env.MCP_PORT || '0', 10) || 18765;
-  const mcpServer = await startThorMcpServer({
-    client,
-    scheduler,
-    runContext,
-    port: mcpPort,
-    memoryDb,
-    twitterClient,
-    outputFilter,
-    rateLimiter,
-  });
+  const tools = [
+    ...createDiscordTools(client, runContext),
+    ...createScheduleTools(scheduler, runContext),
+    ...(memoryDb ? createMemoryTools(memoryDb) : []),
+    ...(twitterClient
+      ? createTwitterTools(twitterClient, outputFilter, rateLimiter, memoryDb)
+      : []),
+  ];
+  const mcpServer = await startHttpMcpServer(tools, mcpPort);
   logger.info(`MCP server started at ${mcpServer.url}`);
 
   // CLI Runner を作成・初期化
