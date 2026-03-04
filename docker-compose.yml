@@ -25,6 +25,7 @@ x-common: &common
     - AGENT_MODEL=${AGENT_MODEL:-}
     # Scheduler data directory (for schedules.json)
     - DATA_DIR=/workspace/.thor
+    - MCP_PORT=${MCP_PORT:-18765}
     - LOG_LEVEL=${LOG_LEVEL:-info}
     - TIMEZONE=${TIMEZONE:-Asia/Tokyo}
 
@@ -33,6 +34,8 @@ services:
   thor:
     <<: *common
     build: .
+    env_file:
+      - .env
     container_name: thor
 
   # フル版（uv + Python）

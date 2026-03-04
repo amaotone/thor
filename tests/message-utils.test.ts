@@ -22,7 +22,7 @@ describe('splitMessage', () => {
   });
 
   it('should fall back to line splitting for oversized blocks', () => {
-    const text = 'a'.repeat(50) + '\n' + 'b'.repeat(50);
+    const text = `${'a'.repeat(50)}\n${'b'.repeat(50)}`;
     // With custom separator that doesn't match, force oversized block
     const chunks = splitMessage(text, 40, '---');
     expect(chunks.length).toBeGreaterThan(1);

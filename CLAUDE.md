@@ -20,10 +20,12 @@ Docker: `docker compose up thor -d --build`
 ## Architecture
 
 ```
-User → Discord → thor (index.ts) → AI CLI → Workspace
+User → Discord → thor (index.ts) → spawn claude -p → Claude CLI → Workspace
+                                       ↕ HTTP MCP
+                                  thor HTTP MCP Server (discord/schedule tools)
 ```
 
-thor is a wrapper that invokes Claude Code from Discord chat. Designed for single-user use.
+thor is a wrapper that invokes Claude Code CLI from Discord chat. Designed for single-user use.
 
 ### Layer Structure
 
@@ -32,16 +34,18 @@ thor is a wrapper that invokes Claude Code from Discord chat. Designed for singl
 | Entry | `index.ts` | Bootstrap, Discord client setup, Brain/Scheduler wiring |
 | Discord | `discord-client.ts`, `agent-response.ts`, `slash-commands.ts` | Message routing, streaming response, slash commands |
 | Brain | `brain/brain.ts`, `brain/heartbeat.ts`, `brain/triggers.ts` | Priority queue, autonomous heartbeat/triggers |
-| Agent | `agent-runner.ts`, `sdk-runner.ts`, `system-prompt.ts` | Agent SDK runner, system prompt construction |
-| MCP | `mcp/server.ts`, `mcp/discord-tools.ts`, `mcp/schedule-tools.ts` | MCP tools for Discord and scheduler operations |
+| Agent | `agent-runner.ts`, `cli-runner.ts`, `system-prompt.ts` | CLI subprocess runner, system prompt construction |
+| MCP | `mcp/server.ts`, `mcp/http-server.ts`, `mcp/discord-tools.ts`, `mcp/schedule-tools.ts` | HTTP MCP server, Discord and scheduler tools |
 | Scheduler | `scheduler.ts`, `schedule-handler.ts`, `scheduler-discord.ts` | Cron/one-shot schedules, slash command handler, Discord bridge |
 | Config | `config.ts`, `constants.ts`, `settings.ts` | Environment variables, constants, runtime settings |
 
 ### Key Data Flows
 
-- `index.ts` boots Discord client → `discord-client.ts` routes messages via `routeMessage()`
+- `index.ts` boots Discord client → starts HTTP MCP server → creates CliRunner
+- `cli-runner.ts` spawns `claude -p --output-format stream-json` per request, parses NDJSON from stdout
 - `agent-response.ts` streams AI responses to Discord with live editing
 - `SYSTEM_COMMAND:` in AI output triggers `system-commands.ts` (e.g., restart)
+- HTTP MCP server (`http-server.ts`) exposes tools to the CLI subprocess via `--mcp-config`
 - MCP tools (`discord-tools.ts`, `schedule-tools.ts`) provide Discord/scheduler access to the AI agent
 - Scheduler runs periodic tasks with `node-cron` and sends results to channels
 

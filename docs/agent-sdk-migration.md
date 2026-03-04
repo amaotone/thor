@@ -2,17 +2,26 @@
 
 ## Executive Summary
 
-thor の AI バックエンドを **Claude CLI のサブプロセス管理** から **Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) のインプロセス呼び出し** へ移行した。
-同時に、AI 出力中のテキストコマンド (`!discord send ...`) を正規表現で解析・実行していたフィードバックループを廃止し、**MCP (Model Context Protocol) Tools** として再実装した。
+thor の AI バックエンドは2段階の移行を経ている:
 
-### Before / After
+1. **CLI → Agent SDK** (初回移行): `child_process.spawn("claude")` + テキストコマンドパース → Agent SDK `query()` + MCP Tools
+2. **Agent SDK → CLI subprocess** (本移行): Agent SDK `query()` → `claude -p --output-format stream-json` + HTTP MCP Server
 
-| 観点 | Before | After |
+### 本移行の理由
+
+Anthropic が 2026年2月に ToS を明確化し、OAuth トークン（Free/Pro/Max）を Agent SDK で使うことを明示的に禁止した。
+thor は Agent SDK の `query()` を OAuth 認証で使用しており、違反状態にあった。
+`claude -p`（CLI 直接呼び出し）は OAuth 認証で許可されているため、CLI サブプロセス方式に移行した。
+
+### Before / After (本移行)
+
+| 観点 | Before (Agent SDK) | After (CLI subprocess) |
 |------|--------|-------|
-| AI 呼び出し | `child_process.spawn("claude")` で持続プロセスを管理 | `query()` による per-request 関数呼び出し |
-| Discord/Schedule 操作 | AI 出力テキストを正規表現パース → 実行 → 結果を再注入 | AI が MCP Tool を直接呼び出し |
-| エラー回復 | Circuit breaker, backoff, buffer flush | SDK 側で管理、不要に |
-| セッション継続 | stdin/stdout の持続プロセスで実現 | `resume: sessionId` オプション |
+| AI 呼び出し | `query()` による per-request 関数呼び出し | `spawn("claude", ["-p", ...])` で NDJSON ストリーミング |
+| MCP 接続 | In-process `createSdkMcpServer()` | HTTP MCP サーバー (`--mcp-config`) |
+| セッション継続 | `resume: sessionId` オプション | `--resume sessionId` CLI フラグ |
+| キャンセル | `AbortController.abort()` | `process.kill('SIGTERM')` |
+| システムプロンプト | `systemPrompt.append` | `--append-system-prompt-file` |
 
 ---
 
@@ -24,7 +33,7 @@ Discord User
     ▼
 ┌──────────────────────────────────────────────────┐
 │  Discord Client (discord.js)                     │
-│  message-handler.ts / discord-client.ts          │
+│  discord-client.ts / agent-response.ts           │
 └──────────┬───────────────────────────────────────┘
            │ getBrain().runStream(prompt, callbacks)
            ▼
@@ -36,13 +45,15 @@ Discord User
            │ runner.runStream(prompt, callbacks)
            ▼
 ┌──────────────────────────────────────────────────┐
-│  SdkRunner (sdk-runner.ts)                       │
-│  per-request query() + AbortController           │
-│  async generator で SDKMessage をストリーミング処理│
+│  CliRunner (cli-runner.ts)                       │
+│  per-request spawn("claude", ["-p", ...])        │
+│  NDJSON stdout パースでストリーミング処理          │
+│                                                  │
+│       ↕ HTTP (--mcp-config)                      │
 │                                                  │
 │  ┌────────────────────────────────────────────┐  │
-│  │  MCP Server "thor" (server.ts)             │  │
-│  │  ├── discord_send                          │  │
+│  │  HTTP MCP Server (http-server.ts)          │  │
+│  │  ├── discord_post                          │  │
 │  │  ├── discord_channels                      │  │
 │  │  ├── discord_history                       │  │
 │  │  ├── discord_delete                        │  │
@@ -54,15 +65,15 @@ Discord User
 └──────────────────────────────────────────────────┘
            │
            ▼
-   Claude Code (Anthropic API)
+   Claude Code CLI (OAuth)
 ```
 
 ### Data Flow
 
-1. Discord メッセージ受信 → `message-handler.ts` がプロンプトを構築
+1. Discord メッセージ受信 → `discord-client.ts` がプロンプトを構築
 2. `Brain.runStream()` が priority queue でスケジューリング（USER メッセージは HEARTBEAT タスクをプリエンプト）
-3. `SdkRunner.runStream()` が SDK `query()` を呼び出し、`AsyncGenerator<SDKMessage>` をイテレート
-4. AI が Discord 送信やスケジュール操作を行いたい場合、**MCP Tool を直接呼び出す**（テキスト出力を経由しない）
+3. `CliRunner.runStream()` が `claude -p --output-format stream-json` を spawn し、stdout の NDJSON をパース
+4. AI が Discord 送信やスケジュール操作を行いたい場合、HTTP MCP Server 経由で **MCP Tool を呼び出す**
 5. ストリーミング中のテキスト delta を `onText` callback 経由で Discord に逐次表示
 6. 完了時に `onComplete` で最終テキストを Discord に送信
 
@@ -73,7 +84,7 @@ Discord User
 | Layer | Technology | Version | Purpose |
 |-------|-----------|---------|---------|
 | Runtime | Bun | latest | TypeScript 実行、パッケージ管理 |
-| AI SDK | `@anthropic-ai/claude-agent-sdk` | ^0.2.66 | Claude Code のプログラマティック呼び出し |
+| MCP SDK | `@modelcontextprotocol/sdk` | ^1.27.1 | HTTP MCP サーバー |
 | Chat | `discord.js` | ^14.16.3 | Discord Bot |
 | Schema | `zod` | ^4.3.6 | MCP Tool の入力スキーマ定義 |
 | Scheduler | `node-cron` | ^4.2.1 | 定期実行タスク |
@@ -85,80 +96,81 @@ Discord User
 
 ## Key Design Decisions
 
-### 1. Per-request `query()` (持続プロセスではなく)
+### 1. Per-request `spawn()` (持続プロセスではなく)
 
-**選択**: リクエストごとに `query()` を呼び出し、`AsyncGenerator` でメッセージをストリーミング処理。
-
-**理由**:
-- Brain の priority queue はタスクをキャンセル・プリエンプトする必要があり、per-request + `AbortController` が最もシンプル
-- セッション継続は SDK の `resume: sessionId` オプションで実現できるため、持続プロセスは不要
-- プロセスクラッシュ回復（circuit breaker, backoff, buffer management）が完全に不要になる
-
-### 2. In-process MCP Server
-
-**選択**: `createSdkMcpServer()` でインプロセス MCP サーバーを作成し、ツール関数が Discord client / Scheduler を直接参照。
+**選択**: リクエストごとに `claude -p` を spawn し、stdout の NDJSON をパースしてストリーミング処理。
 
 **理由**:
-- IPC オーバーヘッドゼロ
-- ツール関数は通常の TypeScript 関数として実装でき、テストも容易
-- 型安全: `zod/v4` でスキーマを定義し、SDK の `tool()` ヘルパーで型推論が効く
+- Brain の priority queue はタスクをキャンセル・プリエンプトする必要があり、per-request + `SIGTERM` が最もシンプル
+- セッション継続は `--resume sessionId` で実現できるため、持続プロセスは不要
+- CLI の `--output-format stream-json` は SDK の `SDKMessage` と同じ構造を出力するため、パースロジックをほぼ流用可能
 
-### 3. `RunContext` による channel 情報の受け渡し
+### 2. HTTP MCP Server (in-process)
 
-**選択**: mutable な `RunContext` オブジェクトを `query()` 呼び出し前に同期的にセットし、MCP Tool 内で参照。
+**選択**: Thor プロセス内で HTTP MCP サーバーを起動し、CLI に `--mcp-config` で URL を渡す。
+
+**理由**:
+- MCP ツールは Thor プロセス内で実行されるため、Discord client や Scheduler に直接アクセス可能
+- `@modelcontextprotocol/sdk` の `McpServer` + `StreamableHTTPServerTransport` で標準的な MCP HTTP サーバーを構築
+- `--strict-mcp-config` で他の MCP 設定を無効化し、thor ツールのみを公開
+
+### 3. `ToolDefinition` インターフェース
+
+**選択**: Agent SDK の `tool()` ヘルパーから独立した `ToolDefinition` インターフェースを導入。
+
+**理由**:
+- MCP SDK の `registerTool()` と Agent SDK の `tool()` は異なる API
+- 共通の `ToolDefinition` を定義することで、ツール実装をトランスポート層から分離
+- テストでは直接 `handler()` を呼び出すだけでよく、mock が不要
+
+### 4. `RunContext` による channel 情報の受け渡し
+
+**選択**: mutable な `RunContext` オブジェクトを `runStream()` 呼び出し前に同期的にセットし、MCP Tool 内で参照。
 
 **理由**:
 - Brain が実行を直列化しているためレースコンディションは発生しない
 - 各ツールが呼び出し元の channelId/guildId を知る必要があるが、MCP プロトコルにはリクエストコンテキストの概念がないため、アプリケーションレベルで注入
 
-### 4. Lazy Brain 初期化
+### 5. Lazy Brain 初期化
 
 **選択**: `getBrain: () => Brain` パターンで Discord client に lazy accessor を渡す。
 
 **理由**:
-- SdkRunner の構築には Discord client（MCP ツール用）と Scheduler が必要
+- CliRunner の構築には MCP サーバー URL が必要 → MCP サーバーには Discord client が必要
 - Discord client のセットアップには Brain への参照が必要
 - 循環依存を lazy accessor で解消
 
-### 5. テキストベースコマンドの維持 (`SYSTEM_COMMAND:restart`, `MEDIA:`)
-
-**選択**: プロセス再起動やファイル添付は引き続きテキスト出力で処理。
-
-**理由**:
-- `SYSTEM_COMMAND:restart` はプロセス自体の終了を伴うため、ツール呼び出しのレスポンスを返せない
-- `MEDIA:` はファイルパスを出力テキストに含める軽量な仕組みで、MCP Tool 化のメリットが薄い
-
 ---
 
-## What Was Removed
+## Migration Details (Agent SDK → CLI)
 
-移行に伴い以下を削除（約 800 行の削減）:
+### Removed
 
 | File | Role |
 |------|------|
-| `persistent-runner.ts` | `child_process.spawn` によるプロセス管理 |
-| `claude-code.ts` | CLI アダプタ（引数構築、パス解決） |
-| `feedback-loop.ts` | AI 出力パース → コマンド実行 → 結果再注入 |
-| `response-parser.ts` | `!discord` / `!schedule` コマンドの正規表現パーサ |
-| 関連テスト 4 ファイル | 上記の単体テスト |
+| `src/agent/sdk-runner.ts` | Agent SDK ベースのランナー |
+| `tests/sdk-runner.test.ts` | SDK ランナーのテスト |
+| `@anthropic-ai/claude-agent-sdk` | Agent SDK パッケージ |
 
-削除されたインフラ:
-- Circuit breaker（`CIRCUIT_BREAKER_PREFIX`, `BACKOFF_BASE_MS`, `BACKOFF_MAX_MS`）
-- Buffer management（`MAX_BUFFER_SIZE`）
-- Process health monitoring（alive/dead 状態管理）
-- `handleResponseFeedback()` フィードバックループ
-
----
-
-## What Was Added
+### Added
 
 | File | Role |
 |------|------|
-| `src/mcp/context.ts` | リクエストコンテキスト（channelId, guildId） |
-| `src/mcp/discord-tools.ts` | Discord MCP Tools (send, channels, history, delete) |
-| `src/mcp/schedule-tools.ts` | Scheduler MCP Tools (create, list, remove, toggle) |
-| `src/mcp/server.ts` | MCP サーバーファクトリ |
-| `src/agent/sdk-runner.ts` | SDK ベースのランナー |
+| `src/agent/cli-runner.ts` | CLI サブプロセスランナー |
+| `src/mcp/http-server.ts` | HTTP MCP サーバー |
+| `tests/cli-runner.test.ts` | CLI ランナーのテスト |
+| `tests/mcp-http-server.test.ts` | HTTP MCP サーバーのテスト |
+
+### Modified
+
+| File | Change |
+|------|--------|
+| `src/mcp/context.ts` | `ToolDefinition`, `McpToolResult` インターフェース追加 |
+| `src/mcp/discord-tools.ts` | `tool()` → `ToolDefinition` 形式 |
+| `src/mcp/schedule-tools.ts` | `tool()` → `ToolDefinition` 形式 |
+| `src/mcp/server.ts` | `createThorMcpServer()` → `startThorMcpServer()` (async, HTTP) |
+| `src/agent/system-prompt.ts` | `buildCliSystemPrompt()` 追加 |
+| `src/index.ts` | `SdkRunner` → `CliRunner`, MCP サーバー起動 |
 
 ---
 
@@ -167,5 +179,5 @@ Discord User
 | Check | Result |
 |-------|--------|
 | `bun run typecheck` | Pass (0 errors) |
-| `bun run test` | 207 tests passed (18 files) |
+| `bun run test` | 194 tests passed (22 files) |
 | `bun run check` | Pass (Biome lint + format) |
