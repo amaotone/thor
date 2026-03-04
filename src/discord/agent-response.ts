@@ -219,7 +219,7 @@ export async function processPrompt(
       config.agent.workdir
     );
 
-    handleSystemCommand(result);
+    handleSystemCommand(result, 'discord');
 
     return result;
   } catch (error) {

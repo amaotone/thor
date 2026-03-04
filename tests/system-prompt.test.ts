@@ -2,7 +2,7 @@ import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { loadSoulMd, loadUserMd } from '../src/agent/system-prompt.js';
+import { loadContentPolicy, loadSoulMd, loadUserMd } from '../src/agent/system-prompt.js';
 
 describe('loadUserMd', () => {
   let tempDir: string;
@@ -71,5 +71,29 @@ describe('loadSoulMd', () => {
     expect(result).toBe('');
 
     chmodSync(soulPath, 0o644);
+  });
+});
+
+describe('loadContentPolicy', () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'thor-test-'));
+  });
+
+  it('returns empty string when workdir is undefined', () => {
+    expect(loadContentPolicy()).toBe('');
+  });
+
+  it('returns empty string when CONTENT_POLICY.md does not exist', () => {
+    expect(loadContentPolicy(tempDir)).toBe('');
+  });
+
+  it('returns formatted content when CONTENT_POLICY.md exists', () => {
+    const content = '# Content Policy\nNo spam allowed.';
+    writeFileSync(join(tempDir, 'CONTENT_POLICY.md'), content);
+
+    const result = loadContentPolicy(tempDir);
+    expect(result).toBe(`\n\n## CONTENT_POLICY.md\n\n${content}`);
   });
 });

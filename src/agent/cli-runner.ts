@@ -90,7 +90,11 @@ export class CliRunner implements AgentRunner {
 
     // Set context for MCP tools
     if (options?.channelId) {
-      this.runContext.set({ channelId: options.channelId, guildId: options.guildId });
+      this.runContext.set({
+        platform: 'discord',
+        channelId: options.channelId,
+        guildId: options.guildId,
+      });
     }
 
     const resumeId = options?.sessionId || this.resumeSessionId || this.sessionId;
