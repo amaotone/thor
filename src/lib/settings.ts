@@ -6,10 +6,12 @@ const logger = createLogger('settings');
 
 export interface Settings {
   autoRestart: boolean;
+  twitterPaused: boolean;
 }
 
 const DEFAULT_SETTINGS: Settings = {
   autoRestart: true,
+  twitterPaused: false,
 };
 
 let settingsPath: string | null = null;
@@ -45,6 +47,7 @@ export function loadSettings(): Settings {
     const parsed = JSON.parse(raw) as Partial<Settings>;
     cachedSettings = {
       autoRestart: parsed.autoRestart ?? DEFAULT_SETTINGS.autoRestart,
+      twitterPaused: parsed.twitterPaused ?? DEFAULT_SETTINGS.twitterPaused,
     };
     return { ...cachedSettings };
   } catch {

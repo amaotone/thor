@@ -47,4 +47,18 @@ describe('handleSystemCommand', () => {
     vi.advanceTimersByTime(2000);
     expect(exitSpy).not.toHaveBeenCalled();
   });
+
+  it('should reject all SYSTEM_COMMANDs when platform is twitter', () => {
+    (loadSettings as ReturnType<typeof vi.fn>).mockReturnValue({ autoRestart: true });
+    handleSystemCommand('SYSTEM_COMMAND:restart', 'twitter');
+    vi.advanceTimersByTime(2000);
+    expect(exitSpy).not.toHaveBeenCalled();
+  });
+
+  it('should allow SYSTEM_COMMANDs when platform is discord', () => {
+    (loadSettings as ReturnType<typeof vi.fn>).mockReturnValue({ autoRestart: true });
+    handleSystemCommand('SYSTEM_COMMAND:restart', 'discord');
+    vi.advanceTimersByTime(1000);
+    expect(exitSpy).toHaveBeenCalledWith(0);
+  });
 });

@@ -26,12 +26,15 @@ export interface ToolDefinition {
  * No race condition because Brain serializes execution.
  */
 export interface RequestContext {
+  platform: 'discord' | 'twitter';
   channelId: string;
   guildId?: string;
+  tweetId?: string;
+  twitterUserId?: string;
 }
 
 export class RunContext {
-  private current: RequestContext = { channelId: '' };
+  private current: RequestContext = { platform: 'discord', channelId: '' };
 
   set(ctx: RequestContext): void {
     this.current = { ...ctx };
@@ -42,6 +45,6 @@ export class RunContext {
   }
 
   clear(): void {
-    this.current = { channelId: '' };
+    this.current = { platform: 'discord', channelId: '' };
   }
 }

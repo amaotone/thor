@@ -18,7 +18,7 @@ const AgentConfigSchema = z.object({
 });
 
 const HeartbeatConfigSchema = z.object({
-  enabled: z.boolean().default(false),
+  enabled: z.boolean().default(true),
   minIntervalMs: z.number().int().positive().default(HEARTBEAT_MIN_INTERVAL_MS),
   maxIntervalMs: z.number().int().positive().default(HEARTBEAT_MAX_INTERVAL_MS),
   idleThresholdMs: z.number().int().positive().default(HEARTBEAT_IDLE_THRESHOLD_MS),
@@ -26,11 +26,22 @@ const HeartbeatConfigSchema = z.object({
 });
 
 const TriggerConfigSchema = z.object({
-  enabled: z.boolean().default(false),
+  enabled: z.boolean().default(true),
   morningHour: z.number().int().min(0).max(23).default(TRIGGER_MORNING_HOUR),
   eveningHour: z.number().int().min(0).max(23).default(TRIGGER_EVENING_HOUR),
   weeklyDay: z.number().int().min(0).max(6).default(TRIGGER_WEEKLY_DAY),
   channelId: z.string().default(''),
+});
+
+const TwitterConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  appKey: z.string().default(''),
+  appSecret: z.string().default(''),
+  accessToken: z.string().default(''),
+  accessSecret: z.string().default(''),
+  ownerId: z.string().default(''),
+  pollIntervalMs: z.number().int().positive().default(120_000), // 2 minutes
+  mentionPollIntervalMs: z.number().int().positive().default(120_000),
 });
 
 const ConfigSchema = z.object({
@@ -42,11 +53,13 @@ const ConfigSchema = z.object({
   agent: AgentConfigSchema,
   heartbeat: HeartbeatConfigSchema,
   trigger: TriggerConfigSchema,
+  twitter: TwitterConfigSchema,
 });
 
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 export type HeartbeatConfig = z.infer<typeof HeartbeatConfigSchema>;
 export type TriggerConfig = z.infer<typeof TriggerConfigSchema>;
+export type TwitterConfig = z.infer<typeof TwitterConfigSchema>;
 export type Config = z.infer<typeof ConfigSchema>;
 
 /** Resolve a path: expand leading `~` to home directory, then resolve to absolute */
@@ -88,7 +101,7 @@ export function loadConfig(): Config {
       workdir: process.env.WORKSPACE_PATH ? resolvePath(process.env.WORKSPACE_PATH) : './workspace',
     },
     heartbeat: {
-      enabled: process.env.HEARTBEAT_ENABLED === 'true',
+      enabled: process.env.HEARTBEAT_ENABLED !== 'false',
       minIntervalMs: parseIntEnv(process.env.HEARTBEAT_MIN_INTERVAL_MS, HEARTBEAT_MIN_INTERVAL_MS),
       maxIntervalMs: parseIntEnv(process.env.HEARTBEAT_MAX_INTERVAL_MS, HEARTBEAT_MAX_INTERVAL_MS),
       idleThresholdMs: parseIntEnv(
@@ -98,11 +111,21 @@ export function loadConfig(): Config {
       channelId: process.env.HEARTBEAT_CHANNEL_ID || '',
     },
     trigger: {
-      enabled: process.env.TRIGGER_ENABLED === 'true',
+      enabled: process.env.TRIGGER_ENABLED !== 'false',
       morningHour: parseIntEnv(process.env.TRIGGER_MORNING_HOUR, TRIGGER_MORNING_HOUR),
       eveningHour: parseIntEnv(process.env.TRIGGER_EVENING_HOUR, TRIGGER_EVENING_HOUR),
       weeklyDay: parseIntEnv(process.env.TRIGGER_WEEKLY_DAY, TRIGGER_WEEKLY_DAY),
       channelId: process.env.TRIGGER_CHANNEL_ID || '',
+    },
+    twitter: {
+      enabled: process.env.TWITTER_ENABLED === 'true',
+      appKey: process.env.TWITTER_APP_KEY || '',
+      appSecret: process.env.TWITTER_APP_SECRET || '',
+      accessToken: process.env.TWITTER_ACCESS_TOKEN || '',
+      accessSecret: process.env.TWITTER_ACCESS_SECRET || '',
+      ownerId: process.env.TWITTER_OWNER_ID || '',
+      pollIntervalMs: parseIntEnv(process.env.TWITTER_POLL_INTERVAL_MS, 120_000),
+      mentionPollIntervalMs: parseIntEnv(process.env.TWITTER_MENTION_POLL_INTERVAL_MS, 120_000),
     },
   };
 

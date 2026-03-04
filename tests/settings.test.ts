@@ -26,7 +26,12 @@ describe('settings', () => {
   describe('loadSettings', () => {
     it('should return default settings when no file exists', () => {
       const settings = loadSettings();
-      expect(settings).toEqual({ autoRestart: true });
+      expect(settings).toEqual({ autoRestart: true, twitterPaused: false });
+    });
+
+    it('should default twitterPaused to false', () => {
+      const settings = loadSettings();
+      expect(settings.twitterPaused).toBe(false);
     });
 
     it('should load settings from file', () => {
@@ -44,7 +49,7 @@ describe('settings', () => {
       writeFileSync(filePath, 'not json');
 
       const settings = loadSettings();
-      expect(settings).toEqual({ autoRestart: true });
+      expect(settings).toEqual({ autoRestart: true, twitterPaused: false });
     });
 
     it('should use cached value on second call', () => {
@@ -81,6 +86,16 @@ describe('settings', () => {
       saveSettings({ autoRestart: false });
       const loaded = loadSettings();
       expect(loaded.autoRestart).toBe(false);
+    });
+
+    it('should save and load twitterPaused: true', () => {
+      saveSettings({ twitterPaused: true });
+
+      clearSettingsCache();
+      initSettings(tempDir);
+
+      const loaded = loadSettings();
+      expect(loaded.twitterPaused).toBe(true);
     });
   });
 });
