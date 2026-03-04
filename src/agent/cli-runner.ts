@@ -9,6 +9,7 @@ import {
 } from '../lib/constants.js';
 import { createLogger } from '../lib/logger.js';
 import type { RunContext } from '../mcp/context.js';
+import type { MemoryDB } from '../memory/memory-db.js';
 import type { AgentRunner, RunOptions, RunResult, StreamCallbacks } from './agent-runner.js';
 import { mergeTexts } from './agent-runner.js';
 import { buildCliSystemPrompt } from './system-prompt.js';
@@ -20,6 +21,7 @@ export interface CliRunnerOptions {
   timeoutMs?: number;
   workdir?: string;
   mcpServerUrl: string;
+  memoryDb?: MemoryDB;
 }
 
 /**
@@ -31,6 +33,7 @@ export class CliRunner implements AgentRunner {
   private timeoutMs: number;
   private workdir?: string;
   private mcpServerUrl: string;
+  private memoryDb?: MemoryDB;
   private runContext: RunContext;
   private sessionId = '';
   private resumeSessionId?: string;
@@ -46,6 +49,7 @@ export class CliRunner implements AgentRunner {
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.workdir = options.workdir;
     this.mcpServerUrl = options.mcpServerUrl;
+    this.memoryDb = options.memoryDb;
     this.runContext = runContext;
   }
 
@@ -68,7 +72,7 @@ export class CliRunner implements AgentRunner {
 
     // System prompt
     this.systemPromptPath = join(tmpdir(), `thor-prompt-${pid}.txt`);
-    const promptContent = buildCliSystemPrompt(this.workdir);
+    const promptContent = buildCliSystemPrompt(this.workdir, this.memoryDb);
     writeFileSync(this.systemPromptPath, promptContent);
     logger.info(`System prompt written to ${this.systemPromptPath}`);
   }

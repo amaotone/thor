@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { SdkRunner } from './agent/sdk-runner.js';
+import { CliRunner } from './agent/cli-runner.js';
 import { Brain } from './brain/brain.js';
 import { Heartbeat } from './brain/heartbeat.js';
 import { TriggerManager } from './brain/triggers.js';
@@ -11,7 +11,8 @@ import { createLogger } from './lib/logger.js';
 import { splitMessage } from './lib/message-utils.js';
 import { initSettings, loadSettings } from './lib/settings.js';
 import { RunContext } from './mcp/context.js';
-import { createThorMcpServer } from './mcp/server.js';
+import { startThorMcpServer } from './mcp/server.js';
+import { MemoryDB } from './memory/memory-db.js';
 import { Scheduler } from './scheduler/scheduler.js';
 
 const logger = createLogger('thor');
@@ -37,8 +38,9 @@ async function main() {
   const initialSettings = loadSettings();
   logger.info(`Settings loaded: autoRestart=${initialSettings.autoRestart}`);
 
-  // スケジューラを初期化
+  // データディレクトリと Memory DB を初期化
   const dataDir = join(workdir, '.thor');
+  const memoryDb = new MemoryDB(join(dataDir, 'memory.db'));
   const scheduler = new Scheduler(dataDir);
 
   // Brain は遅延初期化（Discord client が必要）
@@ -55,14 +57,24 @@ async function main() {
   await client.login(config.discord.token);
   logger.info('Discord bot started');
 
-  // Brain を作成（Discord client + Scheduler が必要）
+  // HTTP MCP サーバーを起動
   const runContext = new RunContext();
-  const mcpServer = createThorMcpServer(client, scheduler, runContext);
-  const runner = new SdkRunner(
-    { model: config.agent.model, timeoutMs: config.agent.timeoutMs, workdir },
-    mcpServer,
+  const mcpPort = parseInt(process.env.MCP_PORT || '0', 10) || 18765;
+  const mcpServer = await startThorMcpServer(client, scheduler, runContext, mcpPort, memoryDb);
+  logger.info(`MCP server started at ${mcpServer.url}`);
+
+  // CLI Runner を作成・初期化
+  const runner = new CliRunner(
+    {
+      model: config.agent.model,
+      timeoutMs: config.agent.timeoutMs,
+      workdir,
+      mcpServerUrl: mcpServer.url,
+      memoryDb,
+    },
     runContext
   );
+  runner.init();
   brain = new Brain(runner);
   logger.info('Brain initialized');
 
@@ -134,6 +146,8 @@ async function main() {
     triggerManager?.stop();
     scheduler.stopAll();
     brain?.shutdown();
+    await mcpServer.close();
+    memoryDb.close();
     client.destroy();
     process.exit(0);
   });
