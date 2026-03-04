@@ -1,4 +1,6 @@
-import { join } from 'node:path';
+import { copyFileSync, existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { CliRunner } from './agent/cli-runner.js';
 import { Brain, Priority } from './brain/brain.js';
 import { Heartbeat } from './brain/heartbeat.js';
@@ -20,6 +22,27 @@ import { TwitterClient } from './twitter/twitter-client.js';
 
 const logger = createLogger('thor');
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+/**
+ * Copy default prompt files from prompts/ to workspace if they don't exist yet.
+ * This seeds the workspace with SOUL.md, CONTENT_POLICY.md etc. on first run.
+ */
+function seedWorkspaceFiles(workdir: string): void {
+  const promptsDir = join(__dirname, '..', 'prompts');
+  const filesToSeed = ['SOUL.md', 'CONTENT_POLICY.md'];
+
+  for (const file of filesToSeed) {
+    const src = join(promptsDir, file);
+    const dst = join(workdir, file);
+    if (existsSync(src) && !existsSync(dst)) {
+      copyFileSync(src, dst);
+      logger.info(`Seeded ${file} to workspace`);
+    }
+  }
+}
+
 async function main() {
   const config = loadConfig();
 
@@ -38,6 +61,7 @@ async function main() {
   // 設定を初期化
   const workdir = config.agent.workdir;
   initSettings(workdir);
+  seedWorkspaceFiles(workdir);
   const initialSettings = loadSettings();
   logger.info(`Settings loaded: autoRestart=${initialSettings.autoRestart}`);
 
