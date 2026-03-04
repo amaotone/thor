@@ -10,11 +10,11 @@ import {
 import { toErrorMessage } from '../../core/shared/error-utils.js';
 import { createLogger } from '../../core/shared/logger.js';
 import { splitMessage } from '../../core/shared/message-utils.js';
+import { mcpText, type RunContext, type ToolDefinition } from '../mcp/context.js';
 import {
   isSendableChannel as defaultIsSendableChannel,
   type SendableChannel,
-} from '../discord/channel-utils.js';
-import { mcpText, type RunContext, type ToolDefinition } from './context.js';
+} from './channel-utils.js';
 
 const logger = createLogger('mcp-discord');
 
