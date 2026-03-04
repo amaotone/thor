@@ -4,12 +4,12 @@ import type { Scheduler } from '../../core/scheduler/scheduler.js';
 import { createDiscordTools } from '../discord/tools.js';
 import type { RateLimiter } from '../twitter/rate-limiter.js';
 import type { OutputFilter } from '../twitter/security.js';
+import { createTwitterTools } from '../twitter/tools.js';
 import type { TwitterClient } from '../twitter/twitter-client.js';
 import type { RunContext } from './context.js';
 import { type HttpMcpServer, startHttpMcpServer } from './http-server.js';
 import { createMemoryTools } from './memory-tools.js';
 import { createScheduleTools } from './schedule-tools.js';
-import { createTwitterTools } from './twitter-tools.js';
 
 export interface McpServerDeps {
   client: Client;

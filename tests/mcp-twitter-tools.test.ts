@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import type { ToolDefinition } from '../src/extensions/mcp/context.js';
-import { createTwitterTools } from '../src/extensions/mcp/twitter-tools.js';
+import { createTwitterTools } from '../src/extensions/twitter/tools.js';
 
 function createMockTwitterClient() {
   return {

@@ -3,10 +3,10 @@ import type { MemoryDB } from '../../core/memory/memory-db.js';
 import { TWEET_MAX_LENGTH } from '../../core/shared/constants.js';
 import { toErrorMessage } from '../../core/shared/error-utils.js';
 import { createLogger } from '../../core/shared/logger.js';
-import type { RateLimiter } from '../twitter/rate-limiter.js';
-import type { OutputFilter } from '../twitter/security.js';
-import type { TwitterClient } from '../twitter/twitter-client.js';
-import { mcpText, type ToolDefinition } from './context.js';
+import { mcpText, type ToolDefinition } from '../mcp/context.js';
+import type { RateLimiter } from './rate-limiter.js';
+import type { OutputFilter } from './security.js';
+import type { TwitterClient } from './twitter-client.js';
 
 const logger = createLogger('mcp-twitter');
 
