@@ -1,31 +1,17 @@
 import type { ChatInputCommandInteraction } from 'discord.js';
-import type { Scheduler, ScheduleType } from '../../core/scheduler/scheduler.js';
+import { getTypeLabel } from '../../core/scheduler/schedule-formatter.js';
+import type { Scheduler } from '../../core/scheduler/scheduler.js';
 import {
   formatScheduleList as defaultFormatScheduleList,
   parseScheduleInput as defaultParseScheduleInput,
 } from '../../core/scheduler/scheduler.js';
-import { TIMEZONE } from '../../core/shared/constants.js';
 import { sendScheduleContent } from './schedule-send.js';
+
+export { getTypeLabel };
 
 export interface ScheduleHandlerDeps {
   parseScheduleInput?: typeof defaultParseScheduleInput;
   formatScheduleList?: typeof defaultFormatScheduleList;
-}
-
-/** スケジュールタイプに応じたラベルを生成 */
-export function getTypeLabel(
-  type: ScheduleType,
-  options: { expression?: string; runAt?: string; channelInfo?: string }
-): string {
-  const channelInfo = options.channelInfo || '';
-  switch (type) {
-    case 'cron':
-      return `🔄 繰り返し: \`${options.expression}\`${channelInfo}`;
-    case 'startup':
-      return `🚀 起動時に実行${channelInfo}`;
-    default:
-      return `⏰  実行時刻: ${new Date(options.runAt ?? '').toLocaleString('ja-JP', { timeZone: TIMEZONE })}${channelInfo}`;
-  }
 }
 
 export async function handleScheduleCommand(

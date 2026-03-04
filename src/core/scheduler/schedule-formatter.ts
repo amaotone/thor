@@ -1,5 +1,21 @@
 import { SCHEDULE_SEPARATOR, TIMEZONE } from '../shared/constants.js';
-import type { Schedule } from './scheduler.js';
+import type { Schedule, ScheduleType } from './scheduler.js';
+
+/** スケジュールタイプに応じたラベルを生成 */
+export function getTypeLabel(
+  type: ScheduleType,
+  options: { expression?: string; runAt?: string; channelInfo?: string }
+): string {
+  const channelInfo = options.channelInfo || '';
+  switch (type) {
+    case 'cron':
+      return `🔄 繰り返し: \`${options.expression}\`${channelInfo}`;
+    case 'startup':
+      return `🚀 起動時に実行${channelInfo}`;
+    default:
+      return `⏰  実行時刻: ${new Date(options.runAt ?? '').toLocaleString('ja-JP', { timeZone: TIMEZONE })}${channelInfo}`;
+  }
+}
 
 /**
  * スケジュール一覧をフォーマット
