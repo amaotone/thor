@@ -12,7 +12,7 @@ bun run check:fix    # Biome auto-fix
 bun run typecheck    # Type check only (tsc --noEmit)
 bun run test         # Run tests (vitest run)
 bun run test:watch   # Test watch mode
-bun vitest run tests/sessions.test.ts  # Run a single test
+bun vitest run tests/settings.test.ts  # Run a single test
 ```
 
 Docker: `docker compose up thor -d --build`
@@ -29,19 +29,20 @@ thor is a wrapper that invokes Claude Code from Discord chat. Designed for singl
 
 | Layer | Files | Role |
 |-------|-------|------|
-| Chat | `index.ts` | Discord client, message routing |
-| Agent | `agent-runner.ts`, `base-runner.ts` | Abstract interface for AI CLI |
-| CLI Adapter | `claude-code.ts` | Claude Code adapter implementation |
-| Process | `persistent-runner.ts`, `runner-manager.ts`, `process-manager.ts` | Persistent process management, queue, circuit breaker |
-| Scheduler | `scheduler.ts`, `schedule-cli.ts` | Cron/one-shot schedules, JSON persistence |
-| Skills | `skills.ts` | Load skills from `workspace/skills/` |
-| Config | `config.ts`, `constants.ts`, `settings.ts`, `sessions.ts` | Environment variables, constants, runtime settings, session management |
+| Entry | `index.ts` | Bootstrap, Discord client setup, Brain/Scheduler wiring |
+| Discord | `discord-client.ts`, `agent-response.ts`, `slash-commands.ts` | Message routing, streaming response, slash commands |
+| Brain | `brain/brain.ts`, `brain/heartbeat.ts`, `brain/triggers.ts` | Priority queue, autonomous heartbeat/triggers |
+| Agent | `agent-runner.ts`, `sdk-runner.ts`, `system-prompt.ts` | Agent SDK runner, system prompt construction |
+| MCP | `mcp/server.ts`, `mcp/discord-tools.ts`, `mcp/schedule-tools.ts` | MCP tools for Discord and scheduler operations |
+| Scheduler | `scheduler.ts`, `schedule-handler.ts`, `scheduler-discord.ts` | Cron/one-shot schedules, slash command handler, Discord bridge |
+| Config | `config.ts`, `constants.ts`, `settings.ts` | Environment variables, constants, runtime settings |
 
 ### Key Data Flows
 
-- `index.ts` receives Discord messages → forwards to AI CLI via `processPrompt()`
-- Detects `!discord` / `!schedule` / `SYSTEM_COMMAND:` in AI output and executes them autonomously
-- `persistent-runner.ts` runs Claude Code as a persistent process using `--input-format=stream-json`
+- `index.ts` boots Discord client → `discord-client.ts` routes messages via `routeMessage()`
+- `agent-response.ts` streams AI responses to Discord with live editing
+- `SYSTEM_COMMAND:` in AI output triggers `system-commands.ts` (e.g., restart)
+- MCP tools (`discord-tools.ts`, `schedule-tools.ts`) provide Discord/scheduler access to the AI agent
 - Scheduler runs periodic tasks with `node-cron` and sends results to channels
 
 ## Development Practices
