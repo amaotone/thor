@@ -11,21 +11,23 @@ import { DISCORD_SAFE_LENGTH } from '../core/shared/constants.js';
 import { createLogger } from '../core/shared/logger.js';
 import { splitMessage } from '../core/shared/message-utils.js';
 import { initSettings, loadSettings } from '../core/shared/settings.js';
-import { CliRunner } from '../extensions/agent-cli/cli-runner.js';
-import { isSendableChannel } from '../extensions/discord/channel-utils.js';
+import { CliRunner } from '../extensions/agent-cli/index.js';
 import {
+  createDiscordTools,
+  isSendableChannel,
   registerSchedulerHandlers,
   setupDiscordClient,
-} from '../extensions/discord/discord-client.js';
-import { createDiscordTools } from '../extensions/discord/tools.js';
-import { RunContext } from '../extensions/mcp/context.js';
-import { startHttpMcpServer } from '../extensions/mcp/http-server.js';
-import { createMemoryTools } from '../extensions/memory/tools.js';
-import { createScheduleTools } from '../extensions/scheduler/tools.js';
-import { RateLimiter } from '../extensions/twitter/rate-limiter.js';
-import { InputSanitizer, OutputFilter } from '../extensions/twitter/security.js';
-import { createTwitterTools } from '../extensions/twitter/tools.js';
-import { TwitterClient } from '../extensions/twitter/twitter-client.js';
+} from '../extensions/discord/index.js';
+import { RunContext, startHttpMcpServer } from '../extensions/mcp/index.js';
+import { createMemoryTools } from '../extensions/memory/index.js';
+import { createScheduleTools } from '../extensions/scheduler/index.js';
+import {
+  createTwitterTools,
+  InputSanitizer,
+  OutputFilter,
+  RateLimiter,
+  TwitterClient,
+} from '../extensions/twitter/index.js';
 
 const logger = createLogger('thor');
 

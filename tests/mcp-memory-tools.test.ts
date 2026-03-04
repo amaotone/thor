@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { MemoryDB } from '../src/core/memory/memory-db.js';
-import type { ToolDefinition } from '../src/extensions/mcp/context.js';
-import { createMemoryTools } from '../src/extensions/memory/tools.js';
+import type { ToolDefinition } from '../src/extensions/mcp/index.js';
+import { createMemoryTools } from '../src/extensions/memory/index.js';
 
 describe('MCP Memory Tools', () => {
   let db: MemoryDB;
