@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { MemoryDB } from '../src/memory/memory-db.js';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { MemoryDB } from '../src/core/memory/memory-db.js';
 
 describe('MemoryDB', () => {
   let db: MemoryDB;

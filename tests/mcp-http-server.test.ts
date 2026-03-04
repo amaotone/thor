@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { z } from 'zod/v4';
-import type { ToolDefinition } from '../src/mcp/context.js';
-import { mcpText } from '../src/mcp/context.js';
-import { type HttpMcpServer, startHttpMcpServer } from '../src/mcp/http-server.js';
+import type { ToolDefinition } from '../src/extensions/mcp/context.js';
+import { mcpText } from '../src/extensions/mcp/context.js';
+import { type HttpMcpServer, startHttpMcpServer } from '../src/extensions/mcp/http-server.js';
 
 let server: HttpMcpServer | null = null;
 

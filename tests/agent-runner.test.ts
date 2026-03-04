@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { mergeTexts } from '../src/agent/agent-runner.js';
+import { describe, expect, it } from 'bun:test';
+import { mergeTexts } from '../src/core/ports/agent-runner.js';
 
 describe('agent-runner', () => {
   describe('mergeTexts', () => {

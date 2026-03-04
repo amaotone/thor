@@ -1,26 +1,23 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 
-const { mockV2 } = vi.hoisted(() => {
-  const mockV2 = {
-    me: vi.fn(),
-    userTimeline: vi.fn(),
-    homeTimeline: vi.fn(),
-    search: vi.fn(),
-    userMentionTimeline: vi.fn(),
-    tweet: vi.fn(),
-    reply: vi.fn(),
-  };
-  return { mockV2 };
-});
+const mockV2 = {
+  me: mock(),
+  userTimeline: mock(),
+  homeTimeline: mock(),
+  search: mock(),
+  userMentionTimeline: mock(),
+  tweet: mock(),
+  reply: mock(),
+};
 
-vi.mock('twitter-api-v2', () => {
+mock.module('twitter-api-v2', () => {
   class MockTwitterApi {
     v2 = mockV2;
   }
   return { TwitterApi: MockTwitterApi };
 });
 
-import { TwitterClient } from '../src/twitter/twitter-client.js';
+import { TwitterClient } from '../src/extensions/twitter/twitter-client.js';
 
 describe('TwitterClient', () => {
   let client: TwitterClient;

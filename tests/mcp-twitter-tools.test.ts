@@ -1,24 +1,24 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ToolDefinition } from '../src/mcp/context.js';
-import { createTwitterTools } from '../src/mcp/twitter-tools.js';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import type { ToolDefinition } from '../src/extensions/mcp/context.js';
+import { createTwitterTools } from '../src/extensions/mcp/twitter-tools.js';
 
 function createMockTwitterClient() {
   return {
-    getHomeTimeline: vi.fn().mockResolvedValue([]),
-    getUserTimeline: vi.fn().mockResolvedValue([]),
-    search: vi.fn().mockResolvedValue([]),
-    getMentions: vi.fn().mockResolvedValue([]),
-    postTweet: vi.fn().mockResolvedValue({ id: '1', text: 'posted' }),
-    replyToTweet: vi.fn().mockResolvedValue({ id: '2', text: 'replied' }),
-    getUsername: vi.fn().mockReturnValue('thor_bot'),
-    getUserId: vi.fn().mockReturnValue('12345'),
-    getOwnTweets: vi.fn().mockResolvedValue([]),
+    getHomeTimeline: mock().mockResolvedValue([]),
+    getUserTimeline: mock().mockResolvedValue([]),
+    search: mock().mockResolvedValue([]),
+    getMentions: mock().mockResolvedValue([]),
+    postTweet: mock().mockResolvedValue({ id: '1', text: 'posted' }),
+    replyToTweet: mock().mockResolvedValue({ id: '2', text: 'replied' }),
+    getUsername: mock().mockReturnValue('thor_bot'),
+    getUserId: mock().mockReturnValue('12345'),
+    getOwnTweets: mock().mockResolvedValue([]),
   } as any;
 }
 
 function createMockOutputFilter(overrides?: { safe?: boolean; reason?: string }) {
   return {
-    check: vi.fn().mockReturnValue({
+    check: mock().mockReturnValue({
       safe: overrides?.safe ?? true,
       text: 'text',
       reason: overrides?.reason,
@@ -32,18 +32,18 @@ function createMockRateLimiter(overrides?: {
   isCircuitBroken?: boolean;
 }) {
   return {
-    checkInbound: vi.fn().mockReturnValue(true),
-    checkOutbound: vi.fn().mockReturnValue(overrides?.checkOutbound ?? true),
-    checkSelfPost: vi.fn().mockReturnValue(overrides?.checkSelfPost ?? true),
-    recordSecurityTrigger: vi.fn(),
-    isCircuitBroken: vi.fn().mockReturnValue(overrides?.isCircuitBroken ?? false),
+    checkInbound: mock().mockReturnValue(true),
+    checkOutbound: mock().mockReturnValue(overrides?.checkOutbound ?? true),
+    checkSelfPost: mock().mockReturnValue(overrides?.checkSelfPost ?? true),
+    recordSecurityTrigger: mock(),
+    isCircuitBroken: mock().mockReturnValue(overrides?.isCircuitBroken ?? false),
   } as any;
 }
 
 function createMockMemoryDb() {
   return {
-    addMemory: vi.fn().mockReturnValue(1),
-    searchMemories: vi.fn().mockReturnValue([]),
+    addMemory: mock().mockReturnValue(1),
+    searchMemories: mock().mockReturnValue([]),
   } as any;
 }
 

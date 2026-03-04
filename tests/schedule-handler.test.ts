@@ -1,44 +1,44 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getTypeLabel } from '../src/scheduler/schedule-handler.js';
+import { beforeEach, describe, expect, it, jest, mock } from 'bun:test';
+import {
+  getTypeLabel,
+  handleScheduleCommand,
+  type ScheduleHandlerDeps,
+} from '../src/extensions/discord/schedule-handler.js';
 
-// --- Mock dependencies ---
-vi.mock('../src/scheduler/scheduler.js', () => ({
-  parseScheduleInput: vi.fn(),
-  formatScheduleList: vi.fn().mockReturnValue('📋 スケジュールはありません'),
-  SCHEDULE_SEPARATOR: '{{SPLIT}}',
-}));
+// --- Mock deps ---
+const mockParseScheduleInput = mock();
+const mockFormatScheduleList = mock().mockReturnValue('📋 スケジュールはありません');
 
-import { handleScheduleCommand } from '../src/scheduler/schedule-handler.js';
-import { formatScheduleList, parseScheduleInput } from '../src/scheduler/scheduler.js';
-
-const mockParseScheduleInput = vi.mocked(parseScheduleInput);
-const mockFormatScheduleList = vi.mocked(formatScheduleList);
+const deps: ScheduleHandlerDeps = {
+  parseScheduleInput: mockParseScheduleInput,
+  formatScheduleList: mockFormatScheduleList,
+};
 
 // --- Test helpers ---
 function createMockInteraction(overrides: Record<string, unknown> = {}) {
   return {
     channelId: 'ch-1',
     options: {
-      getSubcommand: vi.fn().mockReturnValue('list'),
-      getString: vi.fn().mockReturnValue(null),
+      getSubcommand: mock().mockReturnValue('list'),
+      getString: mock().mockReturnValue(null),
     },
-    reply: vi.fn().mockResolvedValue(undefined),
-    followUp: vi.fn().mockResolvedValue(undefined),
+    reply: mock().mockResolvedValue(undefined),
+    followUp: mock().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as Parameters<typeof handleScheduleCommand>[0];
 }
 
 function createMockScheduler(schedules: Array<{ id: string; enabled?: boolean }> = []) {
   return {
-    list: vi.fn().mockReturnValue(schedules),
-    add: vi.fn().mockImplementation((s) => ({
+    list: mock().mockReturnValue(schedules),
+    add: mock().mockImplementation((s) => ({
       ...s,
       id: 'sch_new',
       createdAt: new Date().toISOString(),
       enabled: true,
     })),
-    remove: vi.fn().mockReturnValue(true),
-    toggle: vi.fn().mockImplementation((id) => {
+    remove: mock().mockReturnValue(true),
+    toggle: mock().mockImplementation((id) => {
       const found = schedules.find((s) => s.id === id);
       if (!found) return undefined;
       return { ...found, enabled: !(found.enabled ?? true) };
@@ -77,16 +77,16 @@ describe('getTypeLabel', () => {
 // ─── handleScheduleCommand ─────────────────────────────────
 describe('handleScheduleCommand', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    jest.clearAllMocks();
     mockFormatScheduleList.mockReturnValue('📋 スケジュールはありません');
   });
 
   it('should reply with schedule list for "list" subcommand', async () => {
     const interaction = createMockInteraction();
-    (interaction.options.getSubcommand as ReturnType<typeof vi.fn>).mockReturnValue('list');
+    (interaction.options.getSubcommand as ReturnType<typeof mock>).mockReturnValue('list');
     const scheduler = createMockScheduler();
 
-    await handleScheduleCommand(interaction, scheduler);
+    await handleScheduleCommand(interaction, scheduler, undefined, deps);
 
     expect(scheduler.list).toHaveBeenCalled();
     expect(interaction.reply).toHaveBeenCalled();
@@ -94,22 +94,22 @@ describe('handleScheduleCommand', () => {
 
   it('should reply with error when add input is invalid', async () => {
     const interaction = createMockInteraction();
-    (interaction.options.getSubcommand as ReturnType<typeof vi.fn>).mockReturnValue('add');
-    (interaction.options.getString as ReturnType<typeof vi.fn>).mockReturnValue('invalid input');
+    (interaction.options.getSubcommand as ReturnType<typeof mock>).mockReturnValue('add');
+    (interaction.options.getString as ReturnType<typeof mock>).mockReturnValue('invalid input');
     mockParseScheduleInput.mockReturnValue(null);
     const scheduler = createMockScheduler();
 
-    await handleScheduleCommand(interaction, scheduler);
+    await handleScheduleCommand(interaction, scheduler, undefined, deps);
 
-    const replyArg = (interaction.reply as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const replyArg = (interaction.reply as ReturnType<typeof mock>).mock.calls[0][0];
     expect(replyArg.content).toContain('❌');
     expect(replyArg.ephemeral).toBe(true);
   });
 
   it('should add schedule and reply with success for valid add input', async () => {
     const interaction = createMockInteraction();
-    (interaction.options.getSubcommand as ReturnType<typeof vi.fn>).mockReturnValue('add');
-    (interaction.options.getString as ReturnType<typeof vi.fn>).mockImplementation((key: string) =>
+    (interaction.options.getSubcommand as ReturnType<typeof mock>).mockReturnValue('add');
+    (interaction.options.getString as ReturnType<typeof mock>).mockImplementation((key: string) =>
       key === 'input' ? '毎日 9:00 おはよう' : null
     );
     mockParseScheduleInput.mockReturnValue({
@@ -119,50 +119,50 @@ describe('handleScheduleCommand', () => {
     });
     const scheduler = createMockScheduler();
 
-    await handleScheduleCommand(interaction, scheduler);
+    await handleScheduleCommand(interaction, scheduler, undefined, deps);
 
     expect(scheduler.add).toHaveBeenCalled();
-    const replyArg = (interaction.reply as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    const replyArg = (interaction.reply as ReturnType<typeof mock>).mock.calls[0][0] as string;
     expect(replyArg).toContain('✅');
     expect(replyArg).toContain('sch_new');
   });
 
   it('should remove schedule by id', async () => {
     const interaction = createMockInteraction();
-    (interaction.options.getSubcommand as ReturnType<typeof vi.fn>).mockReturnValue('remove');
-    (interaction.options.getString as ReturnType<typeof vi.fn>).mockReturnValue('sch_abc');
+    (interaction.options.getSubcommand as ReturnType<typeof mock>).mockReturnValue('remove');
+    (interaction.options.getString as ReturnType<typeof mock>).mockReturnValue('sch_abc');
     const scheduler = createMockScheduler();
 
-    await handleScheduleCommand(interaction, scheduler);
+    await handleScheduleCommand(interaction, scheduler, undefined, deps);
 
     expect(scheduler.remove).toHaveBeenCalledWith('sch_abc');
-    const replyArg = (interaction.reply as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    const replyArg = (interaction.reply as ReturnType<typeof mock>).mock.calls[0][0] as string;
     expect(replyArg).toContain('🗑️');
   });
 
   it('should reply with error when remove id not found', async () => {
     const interaction = createMockInteraction();
-    (interaction.options.getSubcommand as ReturnType<typeof vi.fn>).mockReturnValue('remove');
-    (interaction.options.getString as ReturnType<typeof vi.fn>).mockReturnValue('sch_missing');
+    (interaction.options.getSubcommand as ReturnType<typeof mock>).mockReturnValue('remove');
+    (interaction.options.getString as ReturnType<typeof mock>).mockReturnValue('sch_missing');
     const scheduler = createMockScheduler();
-    (scheduler.remove as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    (scheduler.remove as ReturnType<typeof mock>).mockReturnValue(false);
 
-    await handleScheduleCommand(interaction, scheduler);
+    await handleScheduleCommand(interaction, scheduler, undefined, deps);
 
-    const replyArg = (interaction.reply as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    const replyArg = (interaction.reply as ReturnType<typeof mock>).mock.calls[0][0] as string;
     expect(replyArg).toContain('❌');
   });
 
   it('should toggle schedule and reply with status', async () => {
     const interaction = createMockInteraction();
-    (interaction.options.getSubcommand as ReturnType<typeof vi.fn>).mockReturnValue('toggle');
-    (interaction.options.getString as ReturnType<typeof vi.fn>).mockReturnValue('sch_1');
+    (interaction.options.getSubcommand as ReturnType<typeof mock>).mockReturnValue('toggle');
+    (interaction.options.getString as ReturnType<typeof mock>).mockReturnValue('sch_1');
     const scheduler = createMockScheduler([{ id: 'sch_1', enabled: true }]);
 
-    await handleScheduleCommand(interaction, scheduler);
+    await handleScheduleCommand(interaction, scheduler, undefined, deps);
 
     expect(scheduler.toggle).toHaveBeenCalledWith('sch_1');
-    const replyArg = (interaction.reply as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    const replyArg = (interaction.reply as ReturnType<typeof mock>).mock.calls[0][0] as string;
     expect(replyArg).toContain('⏸️ 無効');
   });
 });

@@ -1,10 +1,10 @@
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { execSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-const CLI_PATH = join(import.meta.dirname, '..', 'src', 'scheduler', 'schedule-cli.ts');
+const CLI_PATH = join(import.meta.dirname, '..', 'src', 'core', 'scheduler', 'schedule-cli.ts');
 
 function runCli(args: string, workspaceDir: string): { stdout: string; exitCode: number } {
   try {

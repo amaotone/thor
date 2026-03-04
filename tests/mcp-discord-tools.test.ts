@@ -1,27 +1,21 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ToolDefinition } from '../src/mcp/context.js';
-import { RunContext } from '../src/mcp/context.js';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import type { ToolDefinition } from '../src/extensions/mcp/context.js';
+import { RunContext } from '../src/extensions/mcp/context.js';
+import { createDiscordTools, type DiscordToolsDeps } from '../src/extensions/mcp/discord-tools.js';
 
-// Mock discord.js ChannelType
-vi.mock('discord.js', () => ({
-  ChannelType: { GuildText: 0 },
-}));
-
-// Mock channel-utils
-vi.mock('../src/discord/channel-utils.js', () => ({
-  isSendableChannel: (ch: any) => ch && typeof ch.send === 'function',
-}));
-
-import { createDiscordTools } from '../src/mcp/discord-tools.js';
+const discordToolsDeps: DiscordToolsDeps = {
+  isSendableChannel: ((ch: any) => ch && typeof ch.send === 'function') as any,
+  channelTypeGuildText: 0,
+};
 
 function createMockClient(overrides: any = {}) {
   return {
     channels: {
-      fetch: vi.fn(),
+      fetch: mock(),
     },
     guilds: {
       cache: {
-        get: vi.fn(),
+        get: mock(),
       },
     },
     user: { id: 'bot-user-id' },
@@ -31,7 +25,7 @@ function createMockClient(overrides: any = {}) {
 
 function createSendableChannel(guildId?: string) {
   return {
-    send: vi.fn().mockResolvedValue({}),
+    send: mock().mockResolvedValue({}),
     name: 'test-channel',
     guildId,
     type: 0,
@@ -46,7 +40,7 @@ describe('MCP Discord Tools', () => {
   beforeEach(() => {
     client = createMockClient();
     runContext = new RunContext();
-    const toolArray = createDiscordTools(client, runContext);
+    const toolArray = createDiscordTools(client, runContext, discordToolsDeps);
     tools = {};
     for (const t of toolArray) {
       tools[t.name] = t;
@@ -169,7 +163,7 @@ describe('MCP Discord Tools', () => {
       const channel = {
         name: 'test',
         messages: {
-          fetch: vi.fn().mockResolvedValue({
+          fetch: mock().mockResolvedValue({
             size: 1,
             reverse: () => ({
               map: (fn: any) => {
@@ -202,10 +196,10 @@ describe('MCP Discord Tools', () => {
     it('should delete own bot message', async () => {
       const msg = {
         author: { id: 'bot-user-id' },
-        delete: vi.fn().mockResolvedValue({}),
+        delete: mock().mockResolvedValue({}),
       };
       const channel = {
-        messages: { fetch: vi.fn().mockResolvedValue(msg) },
+        messages: { fetch: mock().mockResolvedValue(msg) },
       };
       client.channels.fetch.mockResolvedValue(channel);
       runContext.set({ channelId: 'ch-1' });
@@ -221,10 +215,10 @@ describe('MCP Discord Tools', () => {
     it('should reject deleting non-bot messages', async () => {
       const msg = {
         author: { id: 'other-user-id' },
-        delete: vi.fn(),
+        delete: mock(),
       };
       const channel = {
-        messages: { fetch: vi.fn().mockResolvedValue(msg) },
+        messages: { fetch: mock().mockResolvedValue(msg) },
       };
       client.channels.fetch.mockResolvedValue(channel);
       runContext.set({ channelId: 'ch-1' });
@@ -240,10 +234,10 @@ describe('MCP Discord Tools', () => {
     it('should parse Discord message links', async () => {
       const msg = {
         author: { id: 'bot-user-id' },
-        delete: vi.fn().mockResolvedValue({}),
+        delete: mock().mockResolvedValue({}),
       };
       const channel = {
-        messages: { fetch: vi.fn().mockResolvedValue(msg) },
+        messages: { fetch: mock().mockResolvedValue(msg) },
       };
       client.channels.fetch.mockResolvedValue(channel);
 

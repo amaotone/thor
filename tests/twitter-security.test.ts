@@ -1,11 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { RateLimiter } from '../src/twitter/rate-limiter.js';
+import { beforeEach, describe, expect, it, jest } from 'bun:test';
+import { RateLimiter } from '../src/extensions/twitter/rate-limiter.js';
 import {
   getTrustLevel,
   InputSanitizer,
   OutputFilter,
   TrustLevel,
-} from '../src/twitter/security.js';
+} from '../src/extensions/twitter/security.js';
 
 describe('Twitter Security', () => {
   describe('TrustLevel', () => {
@@ -178,7 +178,7 @@ describe('Twitter Security', () => {
     });
 
     it('should reset after 1 hour', () => {
-      vi.useFakeTimers();
+      jest.useFakeTimers();
       try {
         for (let i = 0; i < 3; i++) {
           limiter.recordSecurityTrigger();
@@ -186,10 +186,10 @@ describe('Twitter Security', () => {
         expect(limiter.isCircuitBroken()).toBe(true);
 
         // Advance time by 1 hour + 1ms
-        vi.advanceTimersByTime(3600_001);
+        jest.advanceTimersByTime(3600_001);
         expect(limiter.isCircuitBroken()).toBe(false);
       } finally {
-        vi.useRealTimers();
+        jest.useRealTimers();
       }
     });
   });

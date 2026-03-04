@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { splitMessage, splitScheduleContent } from '../src/lib/message-utils.js';
+import { describe, expect, it } from 'bun:test';
+import { splitMessage, splitScheduleContent } from '../src/core/shared/message-utils.js';
 
 describe('splitMessage', () => {
   it('should return single chunk for short text', () => {

@@ -1,20 +1,20 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ToolDefinition } from '../src/mcp/context.js';
-import { RunContext } from '../src/mcp/context.js';
-import { createScheduleTools } from '../src/mcp/schedule-tools.js';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import type { ToolDefinition } from '../src/extensions/mcp/context.js';
+import { RunContext } from '../src/extensions/mcp/context.js';
+import { createScheduleTools } from '../src/extensions/mcp/schedule-tools.js';
 
 function createMockScheduler() {
   return {
-    add: vi.fn().mockReturnValue({
+    add: mock().mockReturnValue({
       id: 'sch-1',
       type: 'cron',
       expression: '0 9 * * *',
       message: 'test',
       enabled: true,
     }),
-    list: vi.fn().mockReturnValue([]),
-    remove: vi.fn(),
-    toggle: vi.fn(),
+    list: mock().mockReturnValue([]),
+    remove: mock(),
+    toggle: mock(),
   } as any;
 }
 

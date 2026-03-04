@@ -1,18 +1,23 @@
+import { afterEach, beforeEach, describe, expect, it, jest } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { formatScheduleList, parseScheduleInput, Scheduler } from '../src/scheduler/scheduler.js';
+import {
+  type AgentRunOptions,
+  formatScheduleList,
+  parseScheduleInput,
+  Scheduler,
+} from '../src/core/scheduler/scheduler.js';
 
 describe('parseScheduleInput', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     // 2025-02-05 09:00:00 JST
-    vi.setSystemTime(new Date('2025-02-05T00:00:00.000Z'));
+    jest.setSystemTime(new Date('2025-02-05T00:00:00.000Z'));
   });
 
   afterEach(() => {
-    vi.useRealTimers();
+    jest.useRealTimers();
   });
 
   it('should parse "N分後 メッセージ"', () => {
@@ -380,6 +385,147 @@ describe('Scheduler', () => {
 
     expect(executed).toContain('ch1:startup task');
   });
+
+  it('should seed system schedules', () => {
+    scheduler.seedSystemSchedules(
+      [
+        { id: 'sys_morning', label: '朝の挨拶', expression: '0 8 * * *', message: 'おはよう' },
+        { id: 'sys_evening', label: '夕方レビュー', expression: '0 22 * * *', message: 'レビュー' },
+      ],
+      'ch1'
+    );
+
+    const list = scheduler.list();
+    expect(list).toHaveLength(2);
+    expect(list[0].id).toBe('sys_morning');
+    expect(list[0].source).toBe('system');
+    expect(list[0].enabled).toBe(true);
+    expect(list[1].id).toBe('sys_evening');
+  });
+
+  it('should preserve enabled state on re-seed', () => {
+    scheduler.seedSystemSchedules(
+      [{ id: 'sys_morning', label: '朝の挨拶', expression: '0 8 * * *', message: 'おはよう' }],
+      'ch1'
+    );
+
+    // Disable the schedule
+    scheduler.toggle('sys_morning');
+    expect(scheduler.get('sys_morning')?.enabled).toBe(false);
+
+    // Re-seed with updated message
+    scheduler.seedSystemSchedules(
+      [{ id: 'sys_morning', label: '朝の挨拶', expression: '0 9 * * *', message: '新おはよう' }],
+      'ch1'
+    );
+
+    const schedule = scheduler.get('sys_morning');
+    expect(schedule?.enabled).toBe(false); // preserved
+    expect(schedule?.expression).toBe('0 9 * * *'); // updated
+    expect(schedule?.message).toBe('新おはよう'); // updated
+  });
+
+  it('should remove system schedules not in template on re-seed', () => {
+    scheduler.seedSystemSchedules(
+      [
+        { id: 'sys_morning', label: '朝の挨拶', expression: '0 8 * * *', message: 'おはよう' },
+        { id: 'sys_twitter', label: 'Twitter', expression: '10 */3 * * *', message: 'tweet' },
+      ],
+      'ch1'
+    );
+    expect(scheduler.list()).toHaveLength(2);
+
+    // Re-seed without twitter
+    scheduler.seedSystemSchedules(
+      [{ id: 'sys_morning', label: '朝の挨拶', expression: '0 8 * * *', message: 'おはよう' }],
+      'ch1'
+    );
+    expect(scheduler.list()).toHaveLength(1);
+    expect(scheduler.get('sys_twitter')).toBeUndefined();
+  });
+
+  it('should not remove user schedules on system re-seed', () => {
+    // Add a user schedule
+    scheduler.add({
+      type: 'cron',
+      expression: '0 12 * * *',
+      message: 'ユーザースケジュール',
+      channelId: 'ch1',
+      platform: 'discord',
+    });
+
+    // Seed system schedules
+    scheduler.seedSystemSchedules(
+      [{ id: 'sys_morning', label: '朝の挨拶', expression: '0 8 * * *', message: 'おはよう' }],
+      'ch1'
+    );
+
+    expect(scheduler.list()).toHaveLength(2);
+  });
+
+  it('should prevent deletion of system schedules', () => {
+    scheduler.seedSystemSchedules(
+      [{ id: 'sys_morning', label: '朝の挨拶', expression: '0 8 * * *', message: 'おはよう' }],
+      'ch1'
+    );
+
+    expect(() => scheduler.remove('sys_morning')).toThrow('System schedules cannot be deleted');
+  });
+
+  it('should allow toggling system schedules', () => {
+    scheduler.seedSystemSchedules(
+      [{ id: 'sys_morning', label: '朝の挨拶', expression: '0 8 * * *', message: 'おはよう' }],
+      'ch1'
+    );
+
+    const toggled = scheduler.toggle('sys_morning');
+    expect(toggled?.enabled).toBe(false);
+
+    const toggledBack = scheduler.toggle('sys_morning');
+    expect(toggledBack?.enabled).toBe(true);
+  });
+
+  it('should persist system schedules to file', () => {
+    scheduler.seedSystemSchedules(
+      [{ id: 'sys_morning', label: '朝の挨拶', expression: '0 8 * * *', message: 'おはよう' }],
+      'ch1'
+    );
+
+    // Load from file
+    const scheduler2 = new Scheduler(tmpDir);
+    const list = scheduler2.list();
+    expect(list).toHaveLength(1);
+    expect(list[0].id).toBe('sys_morning');
+    expect(list[0].source).toBe('system');
+    scheduler2.stopAll();
+  });
+
+  it('should pass source option to agent runner', async () => {
+    const receivedOptions: AgentRunOptions[] = [];
+    scheduler.registerAgentRunner('discord', async (_prompt, _channelId, options) => {
+      receivedOptions.push(options ?? {});
+      return 'ok';
+    });
+
+    scheduler.seedSystemSchedules(
+      [{ id: 'sys_morning', label: '朝の挨拶', expression: '0 8 * * *', message: 'おはよう' }],
+      'ch1'
+    );
+
+    // Add a user schedule for comparison
+    scheduler.add({
+      type: 'startup',
+      message: 'user task',
+      channelId: 'ch1',
+      platform: 'discord',
+    });
+
+    scheduler.startAll();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Startup task should have source undefined (user)
+    expect(receivedOptions.some((o) => o?.source === undefined)).toBe(true);
+  });
 });
 
 describe('formatScheduleList', () => {
@@ -449,5 +595,74 @@ describe('formatScheduleList', () => {
     expect(result).not.toContain('スケジュール一覧');
     expect(result).toContain('スタートアップタスク');
     expect(result).toContain('初期化処理');
+  });
+
+  it('should show system schedules in separate section', () => {
+    const result = formatScheduleList([
+      {
+        id: 'sys_morning',
+        type: 'cron',
+        expression: '0 8 * * *',
+        message: 'おはよう',
+        channelId: 'ch1',
+        platform: 'discord',
+        createdAt: new Date().toISOString(),
+        enabled: true,
+        source: 'system',
+        label: '朝の挨拶',
+      },
+      {
+        id: 'sch_user_1',
+        type: 'cron',
+        expression: '0 12 * * *',
+        message: 'ランチ',
+        channelId: 'ch1',
+        platform: 'discord',
+        createdAt: new Date().toISOString(),
+        enabled: true,
+      },
+    ]);
+    expect(result).toContain('システムスケジュール');
+    expect(result).toContain('スケジュール一覧');
+    expect(result).toContain('sys_morning');
+    expect(result).toContain('sch_user_1');
+  });
+
+  it('should truncate long system schedule messages', () => {
+    const longMessage = 'A'.repeat(100);
+    const result = formatScheduleList([
+      {
+        id: 'sys_test',
+        type: 'cron',
+        expression: '0 8 * * *',
+        message: longMessage,
+        channelId: 'ch1',
+        platform: 'discord',
+        createdAt: new Date().toISOString(),
+        enabled: true,
+        source: 'system',
+      },
+    ]);
+    // Should be truncated to 50 chars + ellipsis
+    expect(result).not.toContain(longMessage);
+    expect(result).toContain('…');
+  });
+
+  it('should show system-only list without regular section', () => {
+    const result = formatScheduleList([
+      {
+        id: 'sys_morning',
+        type: 'cron',
+        expression: '0 8 * * *',
+        message: 'おはよう',
+        channelId: 'ch1',
+        platform: 'discord',
+        createdAt: new Date().toISOString(),
+        enabled: true,
+        source: 'system',
+      },
+    ]);
+    expect(result).toContain('システムスケジュール');
+    expect(result).not.toContain('スケジュール一覧');
   });
 });

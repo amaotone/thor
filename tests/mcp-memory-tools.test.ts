@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { ToolDefinition } from '../src/mcp/context.js';
-import { createMemoryTools } from '../src/mcp/memory-tools.js';
-import { MemoryDB } from '../src/memory/memory-db.js';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { MemoryDB } from '../src/core/memory/memory-db.js';
+import type { ToolDefinition } from '../src/extensions/mcp/context.js';
+import { createMemoryTools } from '../src/extensions/mcp/memory-tools.js';
 
 describe('MCP Memory Tools', () => {
   let db: MemoryDB;

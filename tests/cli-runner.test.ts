@@ -1,28 +1,15 @@
+import { afterEach, beforeEach, describe, expect, it, jest, mock } from 'bun:test';
 import { EventEmitter } from 'node:events';
-import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
-import type { StreamCallbacks } from '../src/agent/agent-runner.js';
-import { CliRunner } from '../src/agent/cli-runner.js';
-import { RunContext } from '../src/mcp/context.js';
-
-// Mock child_process.spawn
-vi.mock('node:child_process', () => ({
-  spawn: vi.fn(),
-}));
-
-// Mock fs.writeFileSync (for init)
-vi.mock('node:fs', async (importOriginal) => {
-  const actual = (await importOriginal()) as any;
-  return { ...actual, writeFileSync: vi.fn() };
-});
-
-import { spawn } from 'node:child_process';
+import type { StreamCallbacks } from '../src/core/ports/agent-runner.js';
+import { CliRunner } from '../src/extensions/agent-cli/cli-runner.js';
+import { RunContext } from '../src/extensions/mcp/context.js';
 
 /** Create a mock child process with stdout/stderr as EventEmitters */
 function createMockChild() {
   const child = new EventEmitter() as any;
   child.stdout = new EventEmitter();
   child.stderr = new EventEmitter();
-  child.kill = vi.fn();
+  child.kill = mock();
   child.pid = 12345;
   return child;
 }
@@ -31,27 +18,33 @@ describe('CliRunner', () => {
   let runner: CliRunner;
   let runContext: RunContext;
   let mockChild: any;
+  const mockSpawn = mock();
+  const mockWriteFileSync = mock();
 
   beforeEach(() => {
     runContext = new RunContext();
+    mockChild = createMockChild();
+    mockSpawn.mockReturnValue(mockChild);
+
     runner = new CliRunner(
       {
         model: 'sonnet',
         timeoutMs: 5000,
         workdir: '/workspace',
         mcpServerUrl: 'http://127.0.0.1:18765/mcp',
+        deps: {
+          spawn: mockSpawn as any,
+          writeFileSync: mockWriteFileSync as any,
+        },
       },
       runContext
     );
-
-    mockChild = createMockChild();
-    (spawn as unknown as MockInstance).mockReturnValue(mockChild);
 
     runner.init();
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    jest.restoreAllMocks();
   });
 
   it('should spawn claude with correct arguments', async () => {
@@ -59,7 +52,6 @@ describe('CliRunner', () => {
 
     // Simulate successful run
     setTimeout(() => {
-      // Emit init message via readline-compatible data
       const initMsg = JSON.stringify({ type: 'system', subtype: 'init', session_id: 'sess-123' });
       const resultMsg = JSON.stringify({
         type: 'result',
@@ -67,14 +59,13 @@ describe('CliRunner', () => {
         result: 'Hello!',
         session_id: 'sess-123',
       });
-      // readline reads from stdout stream line by line
       mockChild.stdout.emit('data', Buffer.from(`${initMsg}\n${resultMsg}\n`));
       mockChild.emit('close', 0);
     }, 10);
 
     await promise;
 
-    expect(spawn).toHaveBeenCalledWith(
+    expect(mockSpawn).toHaveBeenCalledWith(
       'claude',
       expect.arrayContaining([
         '-p',
@@ -111,7 +102,7 @@ describe('CliRunner', () => {
   });
 
   it('should call onText callback for text content', async () => {
-    const onText = vi.fn();
+    const onText = mock();
     const callbacks: StreamCallbacks = { onText };
 
     const promise = runner.runStream('test', callbacks);
@@ -139,7 +130,7 @@ describe('CliRunner', () => {
   });
 
   it('should call onProgress for tool_use blocks', async () => {
-    const onProgress = vi.fn();
+    const onProgress = mock();
     const callbacks: StreamCallbacks = { onProgress };
 
     const promise = runner.runStream('test', callbacks);
@@ -164,7 +155,7 @@ describe('CliRunner', () => {
   });
 
   it('should handle stream_event text_delta', async () => {
-    const onText = vi.fn();
+    const onText = mock();
     const callbacks: StreamCallbacks = { onText };
 
     const promise = runner.runStream('test', callbacks);
@@ -187,7 +178,7 @@ describe('CliRunner', () => {
   });
 
   it('should handle cancellation', async () => {
-    const onError = vi.fn();
+    const onError = mock();
 
     const promise = runner.runStream('test', { onError });
 
@@ -201,7 +192,7 @@ describe('CliRunner', () => {
   });
 
   it('should handle CLI errors', async () => {
-    const onError = vi.fn();
+    const onError = mock();
 
     const promise = runner.runStream('test', { onError });
 
@@ -234,7 +225,7 @@ describe('CliRunner', () => {
 
     await promise;
 
-    expect(spawn).toHaveBeenCalledWith(
+    expect(mockSpawn).toHaveBeenCalledWith(
       'claude',
       expect.arrayContaining(['--resume', 'existing-session']),
       expect.any(Object)

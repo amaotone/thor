@@ -1,32 +1,30 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { BrainRunner } from '../src/brain/brain.js';
-import { Brain, Priority } from '../src/brain/brain.js';
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import type { BrainRunner } from '../src/core/brain/brain.js';
+import { Brain, Priority } from '../src/core/brain/brain.js';
 
 function createMockRunner(): BrainRunner {
   return {
-    run: vi.fn().mockResolvedValue({ result: 'done', sessionId: 'sess-1' }),
-    runStream: vi
-      .fn()
-      .mockImplementation(
-        (
-          _prompt: string,
-          callbacks: { onComplete?: (result: { result: string; sessionId: string }) => void }
-        ) => {
-          return new Promise((resolve) => {
-            setTimeout(() => {
-              const result = { result: 'streamed', sessionId: 'sess-1' };
-              callbacks.onComplete?.(result);
-              resolve(result);
-            }, 10);
-          });
-        }
-      ),
-    cancel: vi.fn().mockReturnValue(true),
-    shutdown: vi.fn(),
-    isBusy: vi.fn().mockReturnValue(false),
-    isAlive: vi.fn().mockReturnValue(true),
-    getSessionId: vi.fn().mockReturnValue('sess-1'),
-    setSessionId: vi.fn(),
+    run: mock().mockResolvedValue({ result: 'done', sessionId: 'sess-1' }),
+    runStream: mock().mockImplementation(
+      (
+        _prompt: string,
+        callbacks: { onComplete?: (result: { result: string; sessionId: string }) => void }
+      ) => {
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            const result = { result: 'streamed', sessionId: 'sess-1' };
+            callbacks.onComplete?.(result);
+            resolve(result);
+          }, 10);
+        });
+      }
+    ),
+    cancel: mock().mockReturnValue(true),
+    shutdown: mock(),
+    isBusy: mock().mockReturnValue(false),
+    isAlive: mock().mockReturnValue(true),
+    getSessionId: mock().mockReturnValue('sess-1'),
+    setSessionId: mock(),
   };
 }
 

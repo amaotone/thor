@@ -1,8 +1,12 @@
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { loadContentPolicy, loadSoulMd, loadUserMd } from '../src/agent/system-prompt.js';
+import {
+  loadContentPolicy,
+  loadSoulMd,
+  loadUserMd,
+} from '../src/extensions/agent-cli/system-prompt.js';
 
 describe('loadUserMd', () => {
   let tempDir: string;

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { formatErrorDetail, toErrorMessage } from '../src/lib/error-utils.js';
+import { describe, expect, it } from 'bun:test';
+import { formatErrorDetail, toErrorMessage } from '../src/core/shared/error-utils.js';
 
 describe('formatErrorDetail', () => {
   it('returns timeout message without label', () => {

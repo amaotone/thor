@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { sanitizeChannelMentions } from '../src/discord/message-enrichment.js';
+import { describe, expect, it } from 'bun:test';
+import { sanitizeChannelMentions } from '../src/extensions/discord/message-enrichment.js';
 
 describe('Discord Reply Feature', () => {
   describe('sanitizeChannelMentions', () => {

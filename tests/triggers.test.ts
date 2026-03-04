@@ -1,123 +1,60 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Brain } from '../src/brain/brain.js';
-import { TriggerManager } from '../src/brain/triggers.js';
+/**
+ * TriggerManager has been replaced by system schedules.
+ * See tests/system-schedules.test.ts for the replacement tests.
+ * See tests/scheduler.test.ts for seedSystemSchedules() and remove() protection tests.
+ */
+import { describe, expect, it } from 'bun:test';
+import { buildSystemSchedules } from '../src/core/scheduler/system-schedules.js';
 
-// Mock node-cron
-vi.mock('node-cron', () => ({
-  default: {
-    schedule: vi.fn().mockReturnValue({
-      stop: vi.fn(),
-    }),
-  },
-}));
-
-// Mock settings
-vi.mock('../src/lib/settings.js', () => ({
-  loadSettings: vi.fn().mockReturnValue({ twitterPaused: false }),
-}));
-
-import cron from 'node-cron';
-
-function createMockBrain(): Brain {
-  return {
-    isBusy: vi.fn().mockReturnValue(false),
-    getIdleTime: vi.fn().mockReturnValue(600_000),
-    submit: vi.fn().mockResolvedValue({ result: 'morning greeting', sessionId: 'sess' }),
-    run: vi.fn(),
-    runStream: vi.fn(),
-    cancel: vi.fn(),
-    cancelAll: vi.fn(),
-    shutdown: vi.fn(),
-    getSessionId: vi.fn().mockReturnValue('sess'),
-    getStatus: vi.fn(),
-  } as unknown as Brain;
-}
-
-describe('TriggerManager', () => {
-  let triggerManager: TriggerManager;
-  let brain: Brain;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    brain = createMockBrain();
-    triggerManager = new TriggerManager(brain, {
-      channelId: 'ch-trigger',
-      morningHour: 8,
-      eveningHour: 22,
-      weeklyDay: 0,
-    });
-  });
-
-  afterEach(() => {
-    triggerManager.stop();
-  });
-
-  it('should start and register 4 cron jobs (morning, evening, weekly reflection, weekly growth)', () => {
-    triggerManager.start();
-    expect(cron.schedule).toHaveBeenCalledTimes(4);
-  });
-
-  it('should set up morning trigger at correct hour', () => {
-    triggerManager.start();
-    const calls = (cron.schedule as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls[0][0]).toBe('0 8 * * *');
-  });
-
-  it('should set up evening trigger at correct hour', () => {
-    triggerManager.start();
-    const calls = (cron.schedule as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls[1][0]).toBe('0 22 * * *');
-  });
-
-  it('should set up weekly trigger on correct day', () => {
-    triggerManager.start();
-    const calls = (cron.schedule as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls[2][0]).toBe('5 22 * * 0');
-  });
-
-  it('should stop all cron jobs', () => {
-    triggerManager.start();
-    triggerManager.stop();
-
-    const mockTask = (cron.schedule as ReturnType<typeof vi.fn>).mock.results[0].value;
-    expect(mockTask.stop).toHaveBeenCalled();
-  });
-
-  it('should accept a result handler', () => {
-    const handler = vi.fn();
-    triggerManager.setResultHandler(handler);
-    // Handler is stored, no error
-  });
-
-  it('should register 8 cron jobs when twitterEnabled is true (4 base + 4 twitter)', () => {
-    vi.clearAllMocks();
-    const twitterTrigger = new TriggerManager(brain, {
+describe('TriggerManager → system schedules migration', () => {
+  it('should produce same cron expressions as original TriggerManager', () => {
+    const schedules = buildSystemSchedules({
       channelId: 'ch-trigger',
       morningHour: 8,
       eveningHour: 22,
       weeklyDay: 0,
       twitterEnabled: true,
     });
-    twitterTrigger.start();
-    // 4 base + news + engage + reflect + engagement review = 8
-    expect(cron.schedule).toHaveBeenCalledTimes(8);
-    twitterTrigger.stop();
+
+    // Morning: was `0 ${morningHour} * * *`
+    expect(schedules.find((s) => s.id === 'sys_morning')?.expression).toBe('0 8 * * *');
+    // Evening: was `0 ${eveningHour} * * *`
+    expect(schedules.find((s) => s.id === 'sys_evening')?.expression).toBe('0 22 * * *');
+    // Weekly: was `5 ${eveningHour} * * ${weeklyDay}`
+    expect(schedules.find((s) => s.id === 'sys_weekly_reflection')?.expression).toBe('5 22 * * 0');
+    // Growth: was `35 ${eveningHour} * * ${weeklyDay}`
+    expect(schedules.find((s) => s.id === 'sys_weekly_growth')?.expression).toBe('35 22 * * 0');
+    // Twitter news: was `10 */3 * * *`
+    expect(schedules.find((s) => s.id === 'sys_twitter_news')?.expression).toBe('10 */3 * * *');
+    // Twitter engage: was `30 1,3,5,7,9,11,13,15,17,19,21,23 * * *`
+    expect(schedules.find((s) => s.id === 'sys_twitter_engage')?.expression).toBe(
+      '30 1,3,5,7,9,11,13,15,17,19,21,23 * * *'
+    );
+    // Twitter reflect: was `15 ${eveningHour} * * *`
+    expect(schedules.find((s) => s.id === 'sys_twitter_reflect')?.expression).toBe('15 22 * * *');
+    // Twitter review: was `0 ${eveningHour - 1} * * *`
+    expect(schedules.find((s) => s.id === 'sys_twitter_review')?.expression).toBe('0 21 * * *');
   });
 
-  it('should set engagement review trigger 1 hour before evening', () => {
-    vi.clearAllMocks();
-    const twitterTrigger = new TriggerManager(brain, {
+  it('should have 8 schedules total (4 base + 4 twitter)', () => {
+    const schedules = buildSystemSchedules({
       channelId: 'ch-trigger',
       morningHour: 8,
       eveningHour: 22,
       weeklyDay: 0,
       twitterEnabled: true,
     });
-    twitterTrigger.start();
-    const calls = (cron.schedule as ReturnType<typeof vi.fn>).mock.calls;
-    // The engagement review should be at eveningHour - 1 = 21:00
-    const engagementReviewCall = calls.find((c: any) => c[0] === '0 21 * * *');
-    expect(engagementReviewCall).toBeDefined();
-    twitterTrigger.stop();
+    expect(schedules).toHaveLength(8);
+  });
+
+  it('should have 4 schedules when twitter is disabled', () => {
+    const schedules = buildSystemSchedules({
+      channelId: 'ch-trigger',
+      morningHour: 8,
+      eveningHour: 22,
+      weeklyDay: 0,
+      twitterEnabled: false,
+    });
+    expect(schedules).toHaveLength(4);
   });
 });

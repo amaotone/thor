@@ -1,6 +1,6 @@
+import { afterEach, beforeEach, describe, expect, it, jest, spyOn } from 'bun:test';
 import fs from 'node:fs';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { downloadFile, extractFilePaths, isPathWithinDir } from '../src/lib/file-utils.js';
+import { downloadFile, extractFilePaths, isPathWithinDir } from '../src/core/shared/file-utils.js';
 
 describe('isPathWithinDir', () => {
   it('should return true for paths inside the directory', () => {
@@ -33,11 +33,11 @@ describe('extractFilePaths', () => {
   const workdir = '/workspace/project';
 
   beforeEach(() => {
-    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    spyOn(fs, 'existsSync').mockReturnValue(true);
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    jest.restoreAllMocks();
   });
 
   it('should extract MEDIA: paths within workdir', () => {
