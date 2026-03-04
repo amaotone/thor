@@ -1,3 +1,8 @@
+/** Helper to build MCP tool text response */
+export function mcpText(text: string) {
+  return { content: [{ type: 'text' as const, text }] };
+}
+
 /**
  * Shared request context — set before each query() call.
  * No race condition because Brain serializes execution.

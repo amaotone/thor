@@ -154,6 +154,23 @@ export async function processPrompt(
       }
     };
 
+    /** Create the initial reply if not yet created */
+    const ensureReply = (content: string) => {
+      if (replyMessage || replyPromise) return false;
+      typing.stop();
+      const promise = message.reply(content);
+      replyPromise = promise;
+      promise
+        .then((msg) => {
+          replyMessage = msg;
+          lastUpdateTime = Date.now();
+        })
+        .catch((err) => {
+          logger.warn('Failed to create reply:', err.message);
+        });
+      return true;
+    };
+
     try {
       const streamResult = await brain.runStream(
         prompt,
@@ -162,47 +179,17 @@ export async function processPrompt(
             streamedText = fullText;
             progressLine = '';
             const content = buildStreamingContent(fullText, progressLine);
-
-            if (!replyMessage && !replyPromise) {
-              typing.stop();
-              const promise = message.reply(content);
-              replyPromise = promise;
-              promise
-                .then((msg) => {
-                  replyMessage = msg;
-                  lastUpdateTime = Date.now();
-                })
-                .catch((err) => {
-                  logger.warn('Failed to create reply:', err.message);
-                });
-              return;
-            }
+            if (ensureReply(content)) return;
             if (!replyMessage) return;
-
             throttledEdit(content);
           },
           onProgress: (toolName, toolInput) => {
             progressLine = formatProgressLine(toolName, toolInput);
             logger.debug(`Tool: ${progressLine}`);
-
-            if (!replyMessage && !replyPromise) {
-              typing.stop();
-              const content = buildStreamingContent('', progressLine);
-              const promise = message.reply(content);
-              replyPromise = promise;
-              promise
-                .then((msg) => {
-                  replyMessage = msg;
-                  lastUpdateTime = Date.now();
-                })
-                .catch((err) => {
-                  logger.warn('Failed to create reply:', err.message);
-                });
-              return;
-            }
+            const content = buildStreamingContent(streamedText, progressLine);
+            if (ensureReply(content)) return;
             if (!replyMessage) return;
-
-            throttledEdit(buildStreamingContent(streamedText, progressLine));
+            throttledEdit(content);
           },
         },
         { channelId, guildId: message.guildId ?? undefined }

@@ -37,7 +37,6 @@ export class SdkRunner implements AgentRunner {
   private sessionId = '';
   private resumeSessionId?: string;
   private abortController: AbortController | null = null;
-  private busy = false;
   private systemPromptAppend: string;
 
   constructor(
@@ -62,7 +61,6 @@ export class SdkRunner implements AgentRunner {
     callbacks: StreamCallbacks,
     options?: RunOptions
   ): Promise<RunResult> {
-    this.busy = true;
     this.abortController = new AbortController();
 
     // Set context for MCP tools
@@ -126,7 +124,6 @@ export class SdkRunner implements AgentRunner {
       callbacks.onError?.(error);
       throw error;
     } finally {
-      this.busy = false;
       this.abortController = null;
       this.runContext.clear();
     }
@@ -220,7 +217,7 @@ export class SdkRunner implements AgentRunner {
   }
 
   isBusy(): boolean {
-    return this.busy;
+    return this.abortController !== null;
   }
 
   isAlive(): boolean {

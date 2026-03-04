@@ -1,3 +1,4 @@
+import { toErrorMessage } from '../lib/error-utils.js';
 import { createLogger } from '../lib/logger.js';
 import { type Brain, Priority } from './brain.js';
 
@@ -16,6 +17,11 @@ export interface HeartbeatOptions {
 
 const HEARTBEAT_PROMPT =
   'Read HEARTBEAT.md and follow the checklist. If there is nothing to do, respond with only HEARTBEAT_OK.';
+
+/** Check if a result is a suppressed heartbeat-ok response */
+export function isHeartbeatOk(text: string): boolean {
+  return text.trim().toUpperCase().startsWith('HEARTBEAT_OK');
+}
 
 /**
  * Heartbeat: periodic autonomous tick with jitter.
@@ -113,9 +119,7 @@ export class Heartbeat {
         options: { channelId: this.options.channelId },
       });
 
-      // HEARTBEAT_OK suppression (case-insensitive, prefix match)
-      const trimmed = result.result.trim();
-      if (trimmed.toUpperCase().startsWith('HEARTBEAT_OK')) {
+      if (isHeartbeatOk(result.result)) {
         logger.debug('Heartbeat result: HEARTBEAT_OK (suppressed)');
       } else {
         logger.info('Heartbeat produced output, forwarding to handler');
@@ -123,7 +127,7 @@ export class Heartbeat {
       }
     } catch (error) {
       // Cancelled by higher-priority task or other error - that's fine
-      const message = error instanceof Error ? error.message : String(error);
+      const message = toErrorMessage(error);
       logger.debug(`Heartbeat task ended: ${message}`);
     } finally {
       this.scheduleNext();

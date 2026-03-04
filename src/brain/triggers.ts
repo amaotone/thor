@@ -1,7 +1,9 @@
 import cron from 'node-cron';
 import { TIMEZONE } from '../lib/constants.js';
+import { toErrorMessage } from '../lib/error-utils.js';
 import { createLogger } from '../lib/logger.js';
 import { type Brain, Priority } from './brain.js';
+import { isHeartbeatOk } from './heartbeat.js';
 
 const logger = createLogger('triggers');
 
@@ -105,13 +107,12 @@ export class TriggerManager {
         options: { channelId },
       });
 
-      // Forward non-empty results
-      const trimmed = result.result.trim();
-      if (trimmed && trimmed !== 'HEARTBEAT_OK') {
+      // Forward non-empty results (suppress heartbeat-ok responses)
+      if (result.result.trim() && !isHeartbeatOk(result.result)) {
         this.onResult?.(result.result, channelId);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = toErrorMessage(error);
       logger.warn(`Trigger task failed: ${message}`);
     }
   }

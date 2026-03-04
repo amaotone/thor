@@ -1,14 +1,16 @@
 import { TIMEZONE } from '../lib/constants.js';
 import type { ScheduleType } from './scheduler.js';
 
+const localTimeFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: TIMEZONE,
+  hour: 'numeric',
+  minute: 'numeric',
+  hour12: false,
+});
+
 /** TIMEZONE での現在時刻の時・分を取得する */
 function getLocalTime(date: Date): { hours: number; minutes: number } {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: TIMEZONE,
-    hour: 'numeric',
-    minute: 'numeric',
-    hour12: false,
-  }).formatToParts(date);
+  const parts = localTimeFormatter.formatToParts(date);
   const hours = parseInt(parts.find((p) => p.type === 'hour')?.value ?? '0', 10);
   const minutes = parseInt(parts.find((p) => p.type === 'minute')?.value ?? '0', 10);
   return { hours, minutes };

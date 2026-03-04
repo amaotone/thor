@@ -16,6 +16,14 @@ import { buildSlashCommands, formatChannelStatus, handleSlashCommand } from './s
 
 const logger = createLogger('discord');
 
+/** Strip Discord mentions and normalize whitespace */
+function stripMentions(content: string): string {
+  return content
+    .replace(/<@[!&]?\d+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 interface DiscordClientDeps {
   config: Config;
   getBrain: () => Brain;
@@ -89,11 +97,7 @@ export function setupDiscordClient(deps: DiscordClientDeps): Client {
 
     if (!isMentioned && !isDM && !isAutoReplyChannel) return;
 
-    const normalizedMessage = message.content
-      .replace(/<@[!&]?\d+>/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toLowerCase();
+    const normalizedMessage = stripMentions(message.content).toLowerCase();
     const isControlCommand = ['!stop', 'stop', '/stop', '!status', 'status', '/status'].includes(
       normalizedMessage
     );
@@ -132,10 +136,7 @@ async function routeMessage(message: Message, client: Client, deps: MessageDeps)
   const { getBrain, config, processingChannels } = deps;
   const brain = getBrain();
 
-  let prompt = message.content
-    .replace(/<@[!&]?\d+>/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  let prompt = stripMentions(message.content);
   const normalizedPrompt = prompt.toLowerCase();
 
   // 停止コマンド
@@ -171,16 +172,15 @@ async function routeMessage(message: Message, client: Client, deps: MessageDeps)
   // チャンネルメンションから最新メッセージを取得
   prompt = await fetchChannelMessages(prompt, client);
 
-  // 添付ファイルをダウンロード
+  // 添付ファイルを並列ダウンロード
   const attachmentPaths: string[] = [];
   if (message.attachments.size > 0) {
-    for (const [, attachment] of message.attachments) {
-      try {
-        const filePath = await downloadFile(attachment.url, attachment.name || 'file');
-        attachmentPaths.push(filePath);
-      } catch (err) {
-        logger.error(`Failed to download attachment: ${attachment.name}`, err);
-      }
+    const results = await Promise.allSettled(
+      [...message.attachments.values()].map((a) => downloadFile(a.url, a.name || 'file'))
+    );
+    for (const r of results) {
+      if (r.status === 'fulfilled') attachmentPaths.push(r.value);
+      else logger.error('Failed to download attachment:', r.reason);
     }
   }
 

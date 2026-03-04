@@ -3,7 +3,7 @@ import type { Brain } from '../brain/brain.js';
 import { isSendableChannel } from '../discord/channel-utils.js';
 
 import type { Config } from '../lib/config.js';
-import { DISCORD_SAFE_LENGTH } from '../lib/constants.js';
+import { CANCELLED_ERROR_MESSAGE, DISCORD_SAFE_LENGTH } from '../lib/constants.js';
 import { formatErrorDetail, toErrorMessage } from '../lib/error-utils.js';
 import { extractFilePaths, stripFilePaths } from '../lib/file-utils.js';
 import { splitMessage } from '../lib/message-utils.js';
@@ -55,7 +55,7 @@ export function registerSchedulerHandlers(
 
       return result;
     } catch (error) {
-      if (error instanceof Error && error.message === 'Request cancelled by user') {
+      if (error instanceof Error && error.message === CANCELLED_ERROR_MESSAGE) {
         await channel.send('Task stopped');
       } else {
         await channel.send(formatErrorDetail(toErrorMessage(error)));

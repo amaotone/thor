@@ -9,9 +9,10 @@ import {
   HISTORY_MAX_COUNT,
   TIMEZONE,
 } from '../lib/constants.js';
+import { toErrorMessage } from '../lib/error-utils.js';
 import { createLogger } from '../lib/logger.js';
 import { splitMessage } from '../lib/message-utils.js';
-import type { RunContext } from './context.js';
+import { mcpText, type RunContext } from './context.js';
 
 const logger = createLogger('mcp-discord');
 
@@ -27,7 +28,7 @@ export function createDiscordTools(client: Client, runContext: RunContext) {
       try {
         const channel = await client.channels.fetch(args.channel_id);
         if (!isSendableChannel(channel)) {
-          return { content: [{ type: 'text' as const, text: 'Error: Channel is not sendable' }] };
+          return mcpText('Error: Channel is not sendable');
         }
 
         // Guild validation
@@ -35,14 +36,7 @@ export function createDiscordTools(client: Client, runContext: RunContext) {
         if (ctx.guildId) {
           const targetGuildId = 'guildId' in channel ? (channel.guildId as string) : undefined;
           if (targetGuildId && ctx.guildId !== targetGuildId) {
-            return {
-              content: [
-                {
-                  type: 'text' as const,
-                  text: 'Error: Cannot send to a channel in a different guild',
-                },
-              ],
-            };
+            return mcpText('Error: Cannot send to a channel in a different guild');
           }
         }
 
@@ -53,17 +47,10 @@ export function createDiscordTools(client: Client, runContext: RunContext) {
 
         const channelName = 'name' in channel ? channel.name : 'unknown';
         logger.info(`Sent message to #${channelName} (${chunks.length} chunk(s))`);
-        return { content: [{ type: 'text' as const, text: `Sent message to #${channelName}` }] };
+        return mcpText(`Sent message to #${channelName}`);
       } catch (err) {
         logger.error('Failed to send message:', err);
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Error: Failed to send message — ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
-        };
+        return mcpText(`Error: Failed to send message — ${toErrorMessage(err)}`);
       }
     }
   );
@@ -76,22 +63,22 @@ export function createDiscordTools(client: Client, runContext: RunContext) {
       try {
         const ctx = runContext.get();
         if (!ctx.guildId) {
-          return { content: [{ type: 'text' as const, text: 'Error: No guild context (DM?)' }] };
+          return mcpText('Error: No guild context (DM?)');
         }
 
         const guild = client.guilds.cache.get(ctx.guildId);
         if (!guild) {
-          return { content: [{ type: 'text' as const, text: 'Error: Guild not found' }] };
+          return mcpText('Error: Guild not found');
         }
 
         const channels = guild.channels.cache
           .filter((c) => c.type === ChannelType.GuildText)
           .map((c) => `- #${c.name} (ID: ${c.id})`)
           .join('\n');
-        return { content: [{ type: 'text' as const, text: `Channels:\n${channels}` }] };
+        return mcpText(`Channels:\n${channels}`);
       } catch (err) {
         logger.error('Failed to list channels:', err);
-        return { content: [{ type: 'text' as const, text: 'Error: Failed to list channels' }] };
+        return mcpText('Error: Failed to list channels');
       }
     }
   );
@@ -112,16 +99,12 @@ export function createDiscordTools(client: Client, runContext: RunContext) {
         const targetChannelId = args.channel_id ?? ctx.channelId;
 
         if (!targetChannelId) {
-          return { content: [{ type: 'text' as const, text: 'Error: No channel specified' }] };
+          return mcpText('Error: No channel specified');
         }
 
         const targetChannel = await client.channels.fetch(targetChannelId);
         if (!targetChannel || !('messages' in targetChannel)) {
-          return {
-            content: [
-              { type: 'text' as const, text: 'Error: Channel not found or has no messages' },
-            ],
-          };
+          return mcpText('Error: Channel not found or has no messages');
         }
 
         let beforeId: string | undefined;
@@ -155,17 +138,10 @@ export function createDiscordTools(client: Client, runContext: RunContext) {
           .join('\n');
 
         const offsetLabel = offset > 0 ? `${rangeStart}–${rangeEnd}` : `latest ${messages.size}`;
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `#${channelName} history (${offsetLabel}):\n${messageList}`,
-            },
-          ],
-        };
+        return mcpText(`#${channelName} history (${offsetLabel}):\n${messageList}`);
       } catch (err) {
         logger.error('Failed to fetch history:', err);
-        return { content: [{ type: 'text' as const, text: 'Error: Failed to fetch history' }] };
+        return mcpText('Error: Failed to fetch history');
       }
     }
   );
@@ -195,38 +171,29 @@ export function createDiscordTools(client: Client, runContext: RunContext) {
           messageId = args.message_id_or_link;
           targetChannelId = args.channel_id ?? runContext.get().channelId;
         } else {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: 'Error: Invalid format. Provide a message ID or Discord link.',
-              },
-            ],
-          };
+          return mcpText('Error: Invalid format. Provide a message ID or Discord link.');
         }
 
         if (!targetChannelId) {
-          return { content: [{ type: 'text' as const, text: 'Error: No channel specified' }] };
+          return mcpText('Error: No channel specified');
         }
 
         const channel = await client.channels.fetch(targetChannelId);
         if (!channel || !('messages' in channel)) {
-          return { content: [{ type: 'text' as const, text: 'Error: Channel not found' }] };
+          return mcpText('Error: Channel not found');
         }
 
         const msg = await channel.messages.fetch(messageId);
         if (msg.author.id !== client.user?.id) {
-          return {
-            content: [{ type: 'text' as const, text: 'Error: Can only delete own (bot) messages' }],
-          };
+          return mcpText('Error: Can only delete own (bot) messages');
         }
 
         await msg.delete();
         logger.info(`Deleted message ${messageId} in channel ${targetChannelId}`);
-        return { content: [{ type: 'text' as const, text: 'Message deleted' }] };
+        return mcpText('Message deleted');
       } catch (err) {
         logger.error('Failed to delete message:', err);
-        return { content: [{ type: 'text' as const, text: 'Error: Failed to delete message' }] };
+        return mcpText('Error: Failed to delete message');
       }
     }
   );

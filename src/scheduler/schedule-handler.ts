@@ -3,7 +3,6 @@ import { sendScheduleContent } from '../discord/schedule-send.js';
 import { TIMEZONE } from '../lib/constants.js';
 import {
   formatScheduleList,
-  type Platform,
   parseScheduleInput,
   type Scheduler,
   type ScheduleType,
@@ -57,7 +56,7 @@ export async function handleScheduleCommand(
         const schedule = scheduler.add({
           ...parsed,
           channelId: targetChannel,
-          platform: 'discord' as Platform,
+          platform: 'discord',
         });
 
         const channelInfoLabel = parsed.targetChannelId ? ` → <#${parsed.targetChannelId}>` : '';

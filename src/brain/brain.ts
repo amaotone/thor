@@ -61,7 +61,6 @@ export class Brain implements AgentRunner {
   private runner: BrainRunner;
   private queue: QueueEntry[] = [];
   private currentTask: QueueEntry | null = null;
-  private processing = false;
   private lastActivityTime = Date.now();
 
   constructor(runner: BrainRunner) {
@@ -208,14 +207,13 @@ export class Brain implements AgentRunner {
    * Process the next task in the priority queue
    */
   private processNext(): void {
-    if (this.processing || this.queue.length === 0) {
+    if (this.currentTask || this.queue.length === 0) {
       return;
     }
 
     const task = this.queue.shift();
     if (!task) return;
 
-    this.processing = true;
     this.currentTask = task;
 
     if (task.priority === Priority.USER) {
@@ -233,7 +231,6 @@ export class Brain implements AgentRunner {
         task.onResult?.(result);
         task.resolve(result);
         this.currentTask = null;
-        this.processing = false;
         this.processNext();
       },
       onError: (error) => {
@@ -241,7 +238,6 @@ export class Brain implements AgentRunner {
         task.onError?.(error);
         task.reject(error);
         this.currentTask = null;
-        this.processing = false;
         this.processNext();
       },
     };
