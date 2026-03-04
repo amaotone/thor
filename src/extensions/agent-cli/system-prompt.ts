@@ -1,13 +1,9 @@
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import type { MemoryDB } from '../../core/memory/memory-db.js';
 import { createLogger } from '../../core/shared/logger.js';
 
 const logger = createLogger('system-prompt');
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 /**
  * マークダウンファイルをセクション形式で読み込む共通ヘルパー
@@ -51,22 +47,6 @@ export function loadContentPolicy(workdir?: string): string {
   return loadMdSection(join(workdir, 'CONTENT_POLICY.md'), 'CONTENT_POLICY.md');
 }
 
-// src/extensions/agent-cli/ or dist/extensions/agent-cli/ から3つ上がプロジェクトルート
-// THOR_COMMANDS.md は起動後に変わらないためモジュールロード時にキャッシュ
-const _thorCommandsContent = loadMdSection(
-  join(__dirname, '..', '..', '..', 'prompts', 'THOR_COMMANDS.md'),
-  'THOR_COMMANDS.md',
-  true
-);
-
-/**
- * thor自身の prompts/ から THOR_COMMANDS.md を読み込む
- * AGENTS.md等のワークスペース設定は各CLIの自動読み込みに任せる
- */
-export function loadThorCommands(): string {
-  return _thorCommandsContent;
-}
-
 /**
  * SDK用のシステムプロンプト追加部分を生成
  * claude_code プリセットに append する内容
@@ -95,7 +75,6 @@ export function buildSdkSystemPrompt(workdir?: string, memoryDb?: MemoryDB): str
     loadUserMd(workdir) +
     loadSoulMd(workdir) +
     loadContentPolicy(workdir) +
-    loadThorCommands() +
     memorySummary
   );
 }
@@ -128,7 +107,6 @@ export function buildCliSystemPrompt(workdir?: string, memoryDb?: MemoryDB): str
     loadUserMd(workdir) +
     loadSoulMd(workdir) +
     loadContentPolicy(workdir) +
-    loadThorCommands() +
     memorySummary
   );
 }

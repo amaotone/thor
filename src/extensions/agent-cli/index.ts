@@ -4,6 +4,5 @@ export {
   buildSdkSystemPrompt,
   loadContentPolicy,
   loadSoulMd,
-  loadThorCommands,
   loadUserMd,
 } from './system-prompt.js';
