@@ -1,4 +1,3 @@
-import { tool } from '@anthropic-ai/claude-agent-sdk';
 import { ChannelType, type Client } from 'discord.js';
 import { z } from 'zod/v4';
 import { isSendableChannel } from '../discord/channel-utils.js';
@@ -12,19 +11,20 @@ import {
 import { toErrorMessage } from '../lib/error-utils.js';
 import { createLogger } from '../lib/logger.js';
 import { splitMessage } from '../lib/message-utils.js';
-import { mcpText, type RunContext } from './context.js';
+import { mcpText, type RunContext, type ToolDefinition } from './context.js';
 
 const logger = createLogger('mcp-discord');
 
-export function createDiscordTools(client: Client, runContext: RunContext) {
-  const discordSend = tool(
-    'discord_send',
-    'Send a message to a Discord channel. The channel_id must be in the same guild as the current channel.',
-    {
+export function createDiscordTools(client: Client, runContext: RunContext): ToolDefinition[] {
+  const discordPost: ToolDefinition = {
+    name: 'discord_post',
+    description:
+      'Post a message to a Discord channel. Use this to proactively send messages to channels — NOT for replying to the current conversation. For replies, use normal text output instead. The channel_id must be in the same guild as the current channel.',
+    schema: z.object({
       channel_id: z.string().describe('Target channel ID'),
       message: z.string().describe('Message content'),
-    },
-    async (args) => {
+    }),
+    handler: async (args) => {
       try {
         const channel = await client.channels.fetch(args.channel_id);
         if (!isSendableChannel(channel)) {
@@ -52,14 +52,14 @@ export function createDiscordTools(client: Client, runContext: RunContext) {
         logger.error('Failed to send message:', err);
         return mcpText(`Error: Failed to send message — ${toErrorMessage(err)}`);
       }
-    }
-  );
+    },
+  };
 
-  const discordChannels = tool(
-    'discord_channels',
-    'List all text channels in the current guild.',
-    {},
-    async () => {
+  const discordChannels: ToolDefinition = {
+    name: 'discord_channels',
+    description: 'List all text channels in the current guild.',
+    schema: z.object({}),
+    handler: async () => {
       try {
         const ctx = runContext.get();
         if (!ctx.guildId) {
@@ -80,18 +80,18 @@ export function createDiscordTools(client: Client, runContext: RunContext) {
         logger.error('Failed to list channels:', err);
         return mcpText('Error: Failed to list channels');
       }
-    }
-  );
+    },
+  };
 
-  const discordHistory = tool(
-    'discord_history',
-    'Fetch recent messages from a Discord channel. Returns message history as text.',
-    {
+  const discordHistory: ToolDefinition = {
+    name: 'discord_history',
+    description: 'Fetch recent messages from a Discord channel. Returns message history as text.',
+    schema: z.object({
       count: z.number().optional().describe('Number of messages to fetch (default 10, max 100)'),
       offset: z.number().optional().describe('Number of messages to skip from latest'),
       channel_id: z.string().optional().describe('Channel ID (defaults to current channel)'),
-    },
-    async (args) => {
+    }),
+    handler: async (args) => {
       try {
         const count = Math.min(args.count ?? HISTORY_DEFAULT_COUNT, HISTORY_MAX_COUNT);
         const offset = args.offset ?? 0;
@@ -143,20 +143,21 @@ export function createDiscordTools(client: Client, runContext: RunContext) {
         logger.error('Failed to fetch history:', err);
         return mcpText('Error: Failed to fetch history');
       }
-    }
-  );
+    },
+  };
 
-  const discordDelete = tool(
-    'discord_delete',
-    'Delete a bot message by message ID or Discord message link. Only bot messages can be deleted.',
-    {
+  const discordDelete: ToolDefinition = {
+    name: 'discord_delete',
+    description:
+      'Delete a bot message by message ID or Discord message link. Only bot messages can be deleted.',
+    schema: z.object({
       message_id_or_link: z.string().describe('Message ID or Discord message link'),
       channel_id: z
         .string()
         .optional()
         .describe('Channel ID (required if using a plain message ID, not a link)'),
-    },
-    async (args) => {
+    }),
+    handler: async (args) => {
       try {
         let messageId: string;
         let targetChannelId: string | undefined;
@@ -195,8 +196,8 @@ export function createDiscordTools(client: Client, runContext: RunContext) {
         logger.error('Failed to delete message:', err);
         return mcpText('Error: Failed to delete message');
       }
-    }
-  );
+    },
+  };
 
-  return [discordSend, discordChannels, discordHistory, discordDelete];
+  return [discordPost, discordChannels, discordHistory, discordDelete];
 }

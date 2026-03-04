@@ -1,17 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ToolDefinition } from '../src/mcp/context.js';
 import { RunContext } from '../src/mcp/context.js';
 
 // Mock discord.js ChannelType
 vi.mock('discord.js', () => ({
   ChannelType: { GuildText: 0 },
-}));
-
-// Mock the SDK tool function to just return the handler
-vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
-  tool: (_name: string, _desc: string, _schema: any, handler: any) => ({
-    name: _name,
-    handler,
-  }),
 }));
 
 // Mock channel-utils
@@ -48,7 +41,7 @@ function createSendableChannel(guildId?: string) {
 describe('MCP Discord Tools', () => {
   let client: any;
   let runContext: RunContext;
-  let tools: Record<string, { handler: (args: any) => Promise<any> }>;
+  let tools: Record<string, ToolDefinition>;
 
   beforeEach(() => {
     client = createMockClient();
@@ -56,17 +49,17 @@ describe('MCP Discord Tools', () => {
     const toolArray = createDiscordTools(client, runContext);
     tools = {};
     for (const t of toolArray) {
-      tools[(t as any).name] = t as any;
+      tools[t.name] = t;
     }
   });
 
-  describe('discord_send', () => {
+  describe('discord_post', () => {
     it('should send a message to a channel', async () => {
       const channel = createSendableChannel('guild-1');
       client.channels.fetch.mockResolvedValue(channel);
       runContext.set({ channelId: 'ch-1', guildId: 'guild-1' });
 
-      const result = await tools.discord_send.handler({
+      const result = await tools.discord_post.handler({
         channel_id: 'ch-1',
         message: 'Hello',
       });
@@ -81,7 +74,7 @@ describe('MCP Discord Tools', () => {
     it('should reject non-sendable channels', async () => {
       client.channels.fetch.mockResolvedValue({ name: 'voice' });
 
-      const result = await tools.discord_send.handler({
+      const result = await tools.discord_post.handler({
         channel_id: 'ch-1',
         message: 'Hello',
       });
@@ -94,7 +87,7 @@ describe('MCP Discord Tools', () => {
       client.channels.fetch.mockResolvedValue(channel);
       runContext.set({ channelId: 'ch-1', guildId: 'guild-1' });
 
-      const result = await tools.discord_send.handler({
+      const result = await tools.discord_post.handler({
         channel_id: 'ch-2',
         message: 'Hello',
       });
@@ -105,7 +98,7 @@ describe('MCP Discord Tools', () => {
     it('should handle fetch errors', async () => {
       client.channels.fetch.mockRejectedValue(new Error('Not found'));
 
-      const result = await tools.discord_send.handler({
+      const result = await tools.discord_post.handler({
         channel_id: 'invalid',
         message: 'Hello',
       });

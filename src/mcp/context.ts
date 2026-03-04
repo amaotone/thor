@@ -1,6 +1,24 @@
+import type { z } from 'zod/v4';
+
+/** MCP tool result type */
+export interface McpToolResult {
+  content: { type: 'text'; text: string }[];
+}
+
 /** Helper to build MCP tool text response */
-export function mcpText(text: string) {
+export function mcpText(text: string): McpToolResult {
   return { content: [{ type: 'text' as const, text }] };
+}
+
+/**
+ * Agent SDK-independent tool definition.
+ * Used by both the HTTP MCP server and tests.
+ */
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  schema: z.ZodType;
+  handler: (args: any) => Promise<McpToolResult>;
 }
 
 /**

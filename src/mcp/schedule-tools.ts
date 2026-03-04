@@ -1,19 +1,24 @@
-import { tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod/v4';
 import { toErrorMessage } from '../lib/error-utils.js';
 import { createLogger } from '../lib/logger.js';
 import { getTypeLabel } from '../scheduler/schedule-handler.js';
 import { formatScheduleList, parseScheduleInput, type Scheduler } from '../scheduler/scheduler.js';
-import { mcpText, type RunContext } from './context.js';
+import { mcpText, type RunContext, type ToolDefinition } from './context.js';
 
 const logger = createLogger('mcp-schedule');
 
-export function createScheduleTools(scheduler: Scheduler, runContext: RunContext) {
-  const scheduleCreate = tool(
-    'schedule_create',
-    'Create a new schedule. Supports: "in 30 minutes message", "15:00 message", "every day 9:00 message", "cron 0 9 * * * message", etc. Prefix with channel ID to target another channel.',
-    { input: z.string().describe('Schedule input string') },
-    async (args) => {
+export function createScheduleTools(
+  scheduler: Scheduler,
+  runContext: RunContext
+): ToolDefinition[] {
+  const scheduleCreate: ToolDefinition = {
+    name: 'schedule_create',
+    description:
+      'Create a new schedule. Supports: "in 30 minutes message", "15:00 message", "every day 9:00 message", "cron 0 9 * * * message", etc. Prefix with channel ID to target another channel.',
+    schema: z.object({
+      input: z.string().describe('Schedule input string'),
+    }),
+    handler: async (args) => {
       try {
         const parsed = parseScheduleInput(args.input);
         if (!parsed) {
@@ -47,24 +52,31 @@ export function createScheduleTools(scheduler: Scheduler, runContext: RunContext
         logger.error('Failed to create schedule:', err);
         return mcpText(`Error: ${toErrorMessage(err)}`);
       }
-    }
-  );
+    },
+  };
 
-  const scheduleList = tool('schedule_list', 'List all schedules.', {}, async () => {
-    try {
-      const schedules = scheduler.list();
-      return mcpText(formatScheduleList(schedules));
-    } catch (err) {
-      logger.error('Failed to list schedules:', err);
-      return mcpText(`Error: ${toErrorMessage(err)}`);
-    }
-  });
+  const scheduleList: ToolDefinition = {
+    name: 'schedule_list',
+    description: 'List all schedules.',
+    schema: z.object({}),
+    handler: async () => {
+      try {
+        const schedules = scheduler.list();
+        return mcpText(formatScheduleList(schedules));
+      } catch (err) {
+        logger.error('Failed to list schedules:', err);
+        return mcpText(`Error: ${toErrorMessage(err)}`);
+      }
+    },
+  };
 
-  const scheduleRemove = tool(
-    'schedule_remove',
-    'Remove a schedule by ID.',
-    { id: z.string().describe('Schedule ID to remove') },
-    async (args) => {
+  const scheduleRemove: ToolDefinition = {
+    name: 'schedule_remove',
+    description: 'Remove a schedule by ID.',
+    schema: z.object({
+      id: z.string().describe('Schedule ID to remove'),
+    }),
+    handler: async (args) => {
       try {
         const removed = scheduler.remove(args.id);
         if (removed) {
@@ -76,14 +88,16 @@ export function createScheduleTools(scheduler: Scheduler, runContext: RunContext
         logger.error('Failed to remove schedule:', err);
         return mcpText(`Error: ${toErrorMessage(err)}`);
       }
-    }
-  );
+    },
+  };
 
-  const scheduleToggle = tool(
-    'schedule_toggle',
-    'Enable or disable a schedule by ID.',
-    { id: z.string().describe('Schedule ID to toggle') },
-    async (args) => {
+  const scheduleToggle: ToolDefinition = {
+    name: 'schedule_toggle',
+    description: 'Enable or disable a schedule by ID.',
+    schema: z.object({
+      id: z.string().describe('Schedule ID to toggle'),
+    }),
+    handler: async (args) => {
       try {
         const schedule = scheduler.toggle(args.id);
         if (schedule) {
@@ -96,8 +110,8 @@ export function createScheduleTools(scheduler: Scheduler, runContext: RunContext
         logger.error('Failed to toggle schedule:', err);
         return mcpText(`Error: ${toErrorMessage(err)}`);
       }
-    }
-  );
+    },
+  };
 
   return [scheduleCreate, scheduleList, scheduleRemove, scheduleToggle];
 }

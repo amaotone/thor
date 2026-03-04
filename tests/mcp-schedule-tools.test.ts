@@ -1,14 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ToolDefinition } from '../src/mcp/context.js';
 import { RunContext } from '../src/mcp/context.js';
-
-// Mock the SDK tool function to just return the handler
-vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
-  tool: (_name: string, _desc: string, _schema: any, handler: any) => ({
-    name: _name,
-    handler,
-  }),
-}));
-
 import { createScheduleTools } from '../src/mcp/schedule-tools.js';
 
 function createMockScheduler() {
@@ -29,7 +21,7 @@ function createMockScheduler() {
 describe('MCP Schedule Tools', () => {
   let scheduler: any;
   let runContext: RunContext;
-  let tools: Record<string, { handler: (args: any) => Promise<any> }>;
+  let tools: Record<string, ToolDefinition>;
 
   beforeEach(() => {
     scheduler = createMockScheduler();
@@ -38,7 +30,7 @@ describe('MCP Schedule Tools', () => {
     const toolArray = createScheduleTools(scheduler, runContext);
     tools = {};
     for (const t of toolArray) {
-      tools[(t as any).name] = t as any;
+      tools[t.name] = t;
     }
   });
 
