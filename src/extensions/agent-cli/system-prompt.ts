@@ -51,10 +51,10 @@ export function loadContentPolicy(workdir?: string): string {
   return loadMdSection(join(workdir, 'CONTENT_POLICY.md'), 'CONTENT_POLICY.md');
 }
 
-// src/agent/ or dist/agent/ から2つ上がプロジェクトルート
+// src/extensions/agent-cli/ or dist/extensions/agent-cli/ から3つ上がプロジェクトルート
 // THOR_COMMANDS.md は起動後に変わらないためモジュールロード時にキャッシュ
 const _thorCommandsContent = loadMdSection(
-  join(__dirname, '..', '..', 'prompts', 'THOR_COMMANDS.md'),
+  join(__dirname, '..', '..', '..', 'prompts', 'THOR_COMMANDS.md'),
   'THOR_COMMANDS.md',
   true
 );
