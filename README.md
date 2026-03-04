@@ -95,7 +95,7 @@ docker compose up thor -d
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HEARTBEAT_ENABLED` | `false` | Enable autonomous heartbeat |
+| `HEARTBEAT_ENABLED` | `true` | Enable autonomous heartbeat |
 | `HEARTBEAT_CHANNEL_ID` | — | Channel to send heartbeat results |
 | `HEARTBEAT_MIN_INTERVAL_MS` | `1800000` | Minimum interval (30 min) |
 | `HEARTBEAT_MAX_INTERVAL_MS` | `7200000` | Maximum interval (2 hours) |
@@ -105,7 +105,7 @@ docker compose up thor -d
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TRIGGER_ENABLED` | `false` | Enable event triggers |
+| `TRIGGER_ENABLED` | `true` | Enable event triggers |
 | `TRIGGER_CHANNEL_ID` | — | Channel to send trigger results |
 | `TRIGGER_MORNING_HOUR` | `8` | Morning trigger hour |
 | `TRIGGER_EVENING_HOUR` | `22` | Evening trigger hour |

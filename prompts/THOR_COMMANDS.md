@@ -7,7 +7,7 @@ Commands, settings, and operational rules specific to thor.
 
 thor provides MCP tools that you can call directly. These are available as `mcp__thor__*` tools:
 
-- `discord_send` — Send a message to a Discord channel
+- `discord_post` — Post a message to a Discord channel (NOT for replying to conversations — use normal text output for replies)
 - `discord_channels` — List text channels in the current guild
 - `discord_history` — Fetch recent messages from a channel
 - `discord_delete` — Delete a bot message by ID or link
@@ -16,7 +16,27 @@ thor provides MCP tools that you can call directly. These are available as `mcp_
 - `schedule_remove` — Remove a schedule by ID
 - `schedule_toggle` — Enable/disable a schedule
 
-Use these tools instead of writing commands in your response text.
+## MCP Tools (Memory)
+
+- `memory_remember` — Save a memory (conversation, observation, knowledge, reflection) with optional importance (1-10) and tags
+- `memory_recall` — Search memories by keyword (FTS5) or list recent memories, with optional type/person filters
+- `memory_person` — Manage people records: get info, update summary/tags, or list all known people
+- `memory_reflect` — Record a self-reflection (daily/weekly/milestone/feedback) or list past reflections
+
+Use memory tools to remember important interactions, learn about people, and reflect on experiences.
+
+## MCP Tools (Twitter)
+
+- `twitter_timeline` — Fetch home timeline or a specific user's timeline
+- `twitter_search` — Search tweets by keyword
+- `twitter_post` — Post a new tweet (max 280 chars)
+- `twitter_reply` — Reply to a tweet (max 280 chars)
+
+Twitter tools are only available when Twitter integration is enabled (`TWITTER_ENABLED=true`).
+
+---
+
+Use these tools for proactive actions (posting to channels, managing schedules, etc.). For replying to the current conversation, use normal text output — it will be displayed as a Discord reply with live streaming.
 
 ---
 

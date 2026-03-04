@@ -26,6 +26,17 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+# Create directories for bun user
+RUN mkdir -p /home/bun/.config/gh && chown -R bun:bun /home/bun/.config
+
+# Add ~/.local/bin to PATH before installing CLIs (installers check PATH)
+ENV PATH="/home/bun/.local/bin:${PATH}"
+
+# Install Claude Code CLI as bun user (rarely changes, cached independently)
+USER bun
+RUN curl -fsSL https://claude.ai/install.sh | bash
+USER root
+
 # Copy package files and install production dependencies
 COPY package.json bun.lock ./
 RUN bun install --production --frozen-lockfile
@@ -33,17 +44,7 @@ RUN bun install --production --frozen-lockfile
 # Copy built files from builder stage
 COPY --from=builder /app/dist ./dist
 
-# Create directories for bun user
-RUN mkdir -p /home/bun/.config/gh && chown -R bun:bun /home/bun/.config
-
-# Switch to bun user for Claude Code CLI installation
 USER bun
-
-# Add ~/.local/bin to PATH before installing CLIs (installers check PATH)
-ENV PATH="/home/bun/.local/bin:${PATH}"
-
-# Install Claude Code CLI as bun user
-RUN curl -fsSL https://claude.ai/install.sh | bash
 
 # Default command
 CMD ["bun", "dist/index.js"]
