@@ -216,6 +216,62 @@ describe('CliRunner', () => {
     await expect(promise).rejects.toThrow('Something went wrong');
   });
 
+  it('should reject on result errors only after process close', async () => {
+    const onError = mock();
+    const promise = runner.runStream('test', { onError });
+
+    const errorLine = JSON.stringify({
+      type: 'result',
+      subtype: 'error',
+      errors: ['No conversation found with session ID: stale-12345678'],
+    });
+    mockChild.stdout.emit('data', Buffer.from(`${errorLine}\n`));
+
+    expect(onError).not.toHaveBeenCalled();
+    mockChild.emit('close', 0);
+
+    await expect(promise).rejects.toThrow('No conversation found with session ID: stale-12345678');
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
+
+  it('should clear stale resumed session when conversation is missing', async () => {
+    const sessionStore = {
+      get: mock().mockReturnValue('stale-12345678'),
+      set: mock(),
+      clear: mock(),
+    };
+
+    const runnerWithSession = new CliRunner(
+      {
+        model: 'sonnet',
+        timeoutMs: 5000,
+        workdir: '/workspace',
+        mcpServerUrl: 'http://127.0.0.1:18765/mcp',
+        sessionStore,
+        deps: {
+          spawn: mockSpawn as any,
+          writeFileSync: mockWriteFileSync as any,
+        },
+      },
+      runContext
+    );
+    runnerWithSession.init();
+
+    const promise = runnerWithSession.runStream('test', {}, { channelId: 'ch-1' });
+
+    const errorLine = JSON.stringify({
+      type: 'result',
+      subtype: 'error',
+      errors: ['No conversation found with session ID: stale-12345678'],
+    });
+    mockChild.stdout.emit('data', Buffer.from(`${errorLine}\n`));
+    mockChild.emit('close', 0);
+
+    await expect(promise).rejects.toThrow('No conversation found with session ID: stale-12345678');
+    expect(sessionStore.clear).toHaveBeenCalledWith('ch-1');
+    expect(sessionStore.set).not.toHaveBeenCalled();
+  });
+
   it('should report isBusy during run', async () => {
     expect(runner.isBusy()).toBe(false);
 

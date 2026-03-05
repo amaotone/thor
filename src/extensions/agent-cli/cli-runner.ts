@@ -168,6 +168,7 @@ export class CliRunner implements AgentRunner {
       let fullText = '';
       let stderrData = '';
       let sessionId = resumedSessionId;
+      let resultErrorMsg: string | undefined;
 
       // Timeout
       const timeout = setTimeout(() => {
@@ -196,6 +197,10 @@ export class CliRunner implements AgentRunner {
             const sessionIdFromMessage = this.extractSessionId(message);
             if (sessionIdFromMessage) {
               sessionId = sessionIdFromMessage;
+            }
+            const errorFromMessage = this.extractResultErrorMessage(message);
+            if (errorFromMessage) {
+              resultErrorMsg = errorFromMessage;
             }
             fullText = this.processMessage(message, callbacks, fullText);
           } catch {
@@ -226,8 +231,33 @@ export class CliRunner implements AgentRunner {
           return;
         }
 
+        if (resultErrorMsg) {
+          if (
+            this.shouldInvalidateResumedSession(resumedSessionId, resultErrorMsg) &&
+            this.sessionStore &&
+            options?.channelId
+          ) {
+            logger.info(`Clearing stale session for channel ${options.channelId}`);
+            this.sessionStore.clear(options.channelId);
+            sessionId = undefined;
+          }
+          const error = new Error(resultErrorMsg);
+          callbacks.onError?.(error);
+          reject(error);
+          return;
+        }
+
         if (code !== 0 && !fullText) {
           const errorMsg = stderrData.trim() || `CLI exited with code ${code}`;
+          if (
+            this.shouldInvalidateResumedSession(resumedSessionId, errorMsg) &&
+            this.sessionStore &&
+            options?.channelId
+          ) {
+            logger.info(`Clearing stale session for channel ${options.channelId}`);
+            this.sessionStore.clear(options.channelId);
+            sessionId = undefined;
+          }
           const error = new Error(errorMsg);
           callbacks.onError?.(error);
           reject(error);
@@ -293,14 +323,28 @@ export class CliRunner implements AgentRunner {
     if (message.type === 'result') {
       if (message.subtype === 'success' && message.result !== undefined) {
         fullText = mergeTexts(fullText, message.result);
-      } else if (message.subtype !== 'success') {
-        const errors = message.errors || [];
-        const errorMsg = errors.join('; ') || 'Unknown error';
-        callbacks.onError?.(new Error(errorMsg));
       }
     }
 
     return fullText;
+  }
+
+  private extractResultErrorMessage(message: any): string | undefined {
+    if (message.type !== 'result' || message.subtype === 'success') {
+      return undefined;
+    }
+    const errors = Array.isArray(message.errors)
+      ? message.errors.filter((error: unknown): error is string => typeof error === 'string')
+      : [];
+    return errors.join('; ') || 'Unknown error';
+  }
+
+  private shouldInvalidateResumedSession(
+    resumedSessionId: string | undefined,
+    errorMsg: string
+  ): boolean {
+    if (!resumedSessionId) return false;
+    return /No conversation found with session ID:/i.test(errorMsg);
   }
 
   private extractSessionId(value: unknown): string | undefined {
