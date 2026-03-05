@@ -215,6 +215,106 @@ describe('MemoryDB', () => {
     });
   });
 
+  describe('conversation turns', () => {
+    it('should add and retrieve turns', () => {
+      const id1 = db.addTurn('ch-1', 'user', 'Hello');
+      const id2 = db.addTurn('ch-1', 'assistant', 'Hi there!');
+
+      expect(id1).toBeGreaterThan(0);
+      expect(id2).toBeGreaterThan(id1);
+
+      const turns = db.getRecentTurns('ch-1');
+      expect(turns).toHaveLength(2);
+      expect(turns[0].role).toBe('user');
+      expect(turns[0].content).toBe('Hello');
+      expect(turns[1].role).toBe('assistant');
+      expect(turns[1].content).toBe('Hi there!');
+    });
+
+    it('should limit recent turns', () => {
+      for (let i = 0; i < 10; i++) {
+        db.addTurn('ch-1', 'user', `Message ${i}`);
+      }
+      const turns = db.getRecentTurns('ch-1', 3);
+      expect(turns).toHaveLength(3);
+      expect(turns[0].content).toBe('Message 7');
+    });
+
+    it('should separate turns by channel', () => {
+      db.addTurn('ch-1', 'user', 'Channel 1');
+      db.addTurn('ch-2', 'user', 'Channel 2');
+
+      expect(db.getRecentTurns('ch-1')).toHaveLength(1);
+      expect(db.getRecentTurns('ch-2')).toHaveLength(1);
+    });
+
+    it('should count turns since a given id', () => {
+      const id1 = db.addTurn('ch-1', 'user', 'First');
+      db.addTurn('ch-1', 'assistant', 'Second');
+      db.addTurn('ch-1', 'user', 'Third');
+
+      expect(db.getTurnCountSince('ch-1', id1)).toBe(2);
+      expect(db.getTurnCountSince('ch-1', 0)).toBe(3);
+    });
+  });
+
+  describe('conversation summaries', () => {
+    it('should upsert and retrieve a summary', () => {
+      db.upsertSummary('ch-1', 'Summary of conversation', 10, 20);
+      const summary = db.getSummary('ch-1');
+      expect(summary).toBeDefined();
+      expect(summary!.summary).toBe('Summary of conversation');
+      expect(summary!.turn_count).toBe(10);
+      expect(summary!.last_turn_id).toBe(20);
+    });
+
+    it('should return latest summary', () => {
+      db.upsertSummary('ch-1', 'Old summary', 5, 10);
+      db.upsertSummary('ch-1', 'New summary', 15, 30);
+      const summary = db.getSummary('ch-1');
+      expect(summary!.summary).toBe('New summary');
+    });
+
+    it('should return null for unknown channel', () => {
+      expect(db.getSummary('unknown')).toBeNull();
+    });
+  });
+
+  describe('searchRelevantMemories', () => {
+    it('should search with type filter', () => {
+      db.addMemory({ type: 'knowledge', content: 'TypeScript is great' });
+      db.addMemory({ type: 'conversation', content: 'Talked about TypeScript' });
+
+      const results = db.searchRelevantMemories('TypeScript', { type: 'knowledge' });
+      expect(results).toHaveLength(1);
+      expect(results[0].type).toBe('knowledge');
+    });
+
+    it('should search without type filter', () => {
+      db.addMemory({ type: 'knowledge', content: 'TypeScript is great' });
+      db.addMemory({ type: 'conversation', content: 'Talked about TypeScript' });
+
+      const results = db.searchRelevantMemories('TypeScript');
+      expect(results).toHaveLength(2);
+    });
+
+    it('should respect limit', () => {
+      for (let i = 0; i < 10; i++) {
+        db.addMemory({ type: 'knowledge', content: `TypeScript fact ${i}` });
+      }
+      const results = db.searchRelevantMemories('TypeScript', { limit: 3 });
+      expect(results).toHaveLength(3);
+    });
+
+    it('should include new columns in results', () => {
+      db.addMemory({ type: 'knowledge', content: 'Test memory' });
+      const results = db.searchRelevantMemories('Test');
+      expect(results[0]).toHaveProperty('source');
+      expect(results[0]).toHaveProperty('confidence');
+      expect(results[0]).toHaveProperty('updated_at');
+    });
+  });
+
   describe('summary for system prompt', () => {
     it('should generate a context summary', () => {
       db.upsertPerson({ id: 'twitter:1', platform: 'twitter', username: 'alice' });

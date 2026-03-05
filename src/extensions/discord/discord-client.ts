@@ -1,5 +1,5 @@
 import { Client, Events, GatewayIntentBits, type Message, REST, Routes } from 'discord.js';
-import type { Brain } from '../../core/brain/brain.js';
+import type { MessageBus } from '../../core/bus/message-bus.js';
 import type { Scheduler } from '../../core/scheduler/scheduler.js';
 import type { Config } from '../../core/shared/config.js';
 import { MAX_QUEUE_PER_CHANNEL } from '../../core/shared/constants.js';
@@ -26,7 +26,7 @@ function stripMentions(content: string): string {
 
 interface DiscordClientDeps {
   config: Config;
-  getBrain: () => Brain;
+  getBus: () => MessageBus;
   scheduler: Scheduler;
 }
 
@@ -34,7 +34,7 @@ interface DiscordClientDeps {
  * Discord クライアントをセットアップして返す
  */
 export function setupDiscordClient(deps: DiscordClientDeps): Client {
-  const { config, getBrain, scheduler } = deps;
+  const { config, getBus, scheduler } = deps;
 
   const client = new Client({
     intents: [
@@ -73,7 +73,7 @@ export function setupDiscordClient(deps: DiscordClientDeps): Client {
     const channelId = interaction.channelId;
 
     await handleSlashCommand(interaction, channelId, {
-      brain: getBrain(),
+      bus: getBus(),
       scheduler,
       config,
       processingChannels,
@@ -115,7 +115,7 @@ export function setupDiscordClient(deps: DiscordClientDeps): Client {
     }
 
     await routeMessage(message, client, {
-      getBrain,
+      getBus,
       config,
       processingChannels,
     });
@@ -127,21 +127,21 @@ export function setupDiscordClient(deps: DiscordClientDeps): Client {
 // ─── Message handler ───
 
 interface MessageDeps {
-  getBrain: () => Brain;
+  getBus: () => MessageBus;
   config: Config;
   processingChannels: Map<string, number>;
 }
 
 async function routeMessage(message: Message, client: Client, deps: MessageDeps): Promise<void> {
-  const { getBrain, config, processingChannels } = deps;
-  const brain = getBrain();
+  const { getBus, config, processingChannels } = deps;
+  const bus = getBus();
 
   let prompt = stripMentions(message.content);
   const normalizedPrompt = prompt.toLowerCase();
 
   // 停止コマンド
   if (['!stop', 'stop', '/stop'].includes(normalizedPrompt)) {
-    const cancelledCount = brain.cancelAll();
+    const cancelledCount = bus.cancelAll();
     processingChannels.delete(message.channel.id);
     if (cancelledCount > 0) {
       await message.reply(`Stopped${cancelledCount > 1 ? ` (${cancelledCount} cancelled)` : ''}`);
@@ -153,7 +153,7 @@ async function routeMessage(message: Message, client: Client, deps: MessageDeps)
 
   // 状態確認コマンド
   if (['!status', 'status', '/status'].includes(normalizedPrompt)) {
-    await message.reply(formatChannelStatus(message.channel.id, processingChannels, brain));
+    await message.reply(formatChannelStatus(message.channel.id, processingChannels, bus));
     return;
   }
 
@@ -196,7 +196,7 @@ async function routeMessage(message: Message, client: Client, deps: MessageDeps)
   const channelId = message.channel.id;
   processingChannels.set(channelId, (processingChannels.get(channelId) ?? 0) + 1);
   try {
-    await processPrompt(message, brain, prompt, channelId, config);
+    await processPrompt(message, bus, prompt, channelId, config);
   } finally {
     const remaining = (processingChannels.get(channelId) ?? 1) - 1;
     if (remaining <= 0) processingChannels.delete(channelId);

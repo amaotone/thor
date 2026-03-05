@@ -1,32 +1,31 @@
 import { afterEach, beforeEach, describe, expect, it, jest, mock } from 'bun:test';
-import type { Brain } from '../src/core/brain/brain.js';
-import { Priority } from '../src/core/brain/brain.js';
-import { Heartbeat } from '../src/core/brain/heartbeat.js';
+import { Heartbeat } from '../src/core/bus/heartbeat.js';
+import type { MessageBus } from '../src/core/bus/message-bus.js';
+import { Priority } from '../src/core/bus/message-bus.js';
 
-function createMockBrain(overrides: Partial<Brain> = {}): Brain {
+function createMockBus(overrides: Partial<MessageBus> = {}): MessageBus {
   return {
     isBusy: mock().mockReturnValue(false),
     getIdleTime: mock().mockReturnValue(600_000), // 10 minutes
-    submit: mock().mockResolvedValue({ result: 'HEARTBEAT_OK', sessionId: 'sess' }),
+    submit: mock().mockResolvedValue({ result: 'HEARTBEAT_OK' }),
     run: mock(),
     runStream: mock(),
     cancel: mock(),
     cancelAll: mock(),
     shutdown: mock(),
-    getSessionId: mock().mockReturnValue('sess'),
     getStatus: mock(),
     ...overrides,
-  } as unknown as Brain;
+  } as unknown as MessageBus;
 }
 
 describe('Heartbeat', () => {
   let heartbeat: Heartbeat;
-  let brain: Brain;
+  let bus: MessageBus;
 
   beforeEach(() => {
     jest.useFakeTimers();
-    brain = createMockBrain();
-    heartbeat = new Heartbeat(brain, {
+    bus = createMockBus();
+    heartbeat = new Heartbeat(bus, {
       minIntervalMs: 1000,
       maxIntervalMs: 2000,
       idleThresholdMs: 5000,
@@ -57,7 +56,7 @@ describe('Heartbeat', () => {
     jest.advanceTimersByTime(3000);
     await Promise.resolve();
 
-    expect(brain.submit).toHaveBeenCalledWith(
+    expect(bus.submit).toHaveBeenCalledWith(
       expect.objectContaining({
         priority: Priority.HEARTBEAT,
         options: { channelId: 'ch-heartbeat' },
@@ -65,24 +64,24 @@ describe('Heartbeat', () => {
     );
   });
 
-  it('should skip tick when brain is busy', async () => {
-    (brain.isBusy as ReturnType<typeof mock>).mockReturnValue(true);
+  it('should skip tick when bus is busy', async () => {
+    (bus.isBusy as ReturnType<typeof mock>).mockReturnValue(true);
     heartbeat.start();
 
     jest.advanceTimersByTime(3000);
     await Promise.resolve();
 
-    expect(brain.submit).not.toHaveBeenCalled();
+    expect(bus.submit).not.toHaveBeenCalled();
   });
 
   it('should skip tick when user is recently active', async () => {
-    (brain.getIdleTime as ReturnType<typeof mock>).mockReturnValue(1000); // 1 second
+    (bus.getIdleTime as ReturnType<typeof mock>).mockReturnValue(1000); // 1 second
     heartbeat.start();
 
     jest.advanceTimersByTime(3000);
     await Promise.resolve();
 
-    expect(brain.submit).not.toHaveBeenCalled();
+    expect(bus.submit).not.toHaveBeenCalled();
   });
 
   it('should suppress HEARTBEAT_OK results', async () => {
@@ -97,9 +96,8 @@ describe('Heartbeat', () => {
   });
 
   it('should forward non-HEARTBEAT_OK results', async () => {
-    (brain.submit as ReturnType<typeof mock>).mockResolvedValue({
+    (bus.submit as ReturnType<typeof mock>).mockResolvedValue({
       result: '!discord send <#ch> hello',
-      sessionId: 'sess',
     });
 
     const handler = mock();

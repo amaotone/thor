@@ -1,6 +1,6 @@
 import { toErrorMessage } from '../shared/error-utils.js';
 import { createLogger } from '../shared/logger.js';
-import { type Brain, Priority } from './brain.js';
+import { type MessageBus, Priority } from './message-bus.js';
 
 const logger = createLogger('heartbeat');
 
@@ -27,18 +27,18 @@ export function isHeartbeatOk(text: string): boolean {
  * Heartbeat: periodic autonomous tick with jitter.
  *
  * Fires at random intervals between minIntervalMs and maxIntervalMs.
- * If the Brain is busy or user was recently active, skip silently.
+ * If the MessageBus is busy or user was recently active, skip silently.
  * Responses containing only "HEARTBEAT_OK" are suppressed (not sent to Discord).
  */
 export class Heartbeat {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private running = false;
-  private brain: Brain;
+  private bus: MessageBus;
   private options: HeartbeatOptions;
   private onResult?: (result: string, channelId: string) => void;
 
-  constructor(brain: Brain, options: HeartbeatOptions) {
-    this.brain = brain;
+  constructor(bus: MessageBus, options: HeartbeatOptions) {
+    this.bus = bus;
     this.options = options;
   }
 
@@ -95,15 +95,15 @@ export class Heartbeat {
   private async tick(): Promise<void> {
     if (!this.running) return;
 
-    // Skip if brain is busy
-    if (this.brain.isBusy()) {
-      logger.debug('Skipping heartbeat: brain is busy');
+    // Skip if bus is busy
+    if (this.bus.isBusy()) {
+      logger.debug('Skipping heartbeat: bus is busy');
       this.scheduleNext();
       return;
     }
 
     // Skip if user was recently active
-    const idleTime = this.brain.getIdleTime();
+    const idleTime = this.bus.getIdleTime();
     if (idleTime < this.options.idleThresholdMs) {
       logger.debug(`Skipping heartbeat: user active ${Math.round(idleTime / 1000)}s ago`);
       this.scheduleNext();
@@ -113,7 +113,7 @@ export class Heartbeat {
     logger.info('Heartbeat tick');
 
     try {
-      const result = await this.brain.submit({
+      const result = await this.bus.submit({
         prompt: HEARTBEAT_PROMPT,
         priority: Priority.HEARTBEAT,
         options: { channelId: this.options.channelId },

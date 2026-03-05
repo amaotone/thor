@@ -50,6 +50,26 @@ export interface Memory {
   context: string | null;
   importance: number;
   tags: string[];
+  source: string | null;
+  confidence: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationTurn {
+  id: number;
+  channel_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
+}
+
+export interface ConversationSummary {
+  id: number;
+  channel_id: string;
+  summary: string;
+  turn_count: number;
+  last_turn_id: number;
   created_at: string;
 }
 
@@ -119,6 +139,29 @@ export class MemoryDB {
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
 
+      CREATE TABLE IF NOT EXISTS conversation_turns (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        channel_id TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_conversation_turns_channel
+        ON conversation_turns(channel_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS conversation_summaries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        channel_id TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        turn_count INTEGER NOT NULL DEFAULT 0,
+        last_turn_id INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_conversation_summaries_channel
+        ON conversation_summaries(channel_id, created_at DESC);
+
       CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
         content, tags, content=memories, content_rowid=id
       );
@@ -136,6 +179,20 @@ export class MemoryDB {
         INSERT INTO memories_fts(rowid, content, tags) VALUES (new.id, new.content, new.tags);
       END;
     `);
+
+    // ALTER TABLE migrations (catch duplicate column errors)
+    const alterStatements = [
+      'ALTER TABLE memories ADD COLUMN source TEXT',
+      "ALTER TABLE memories ADD COLUMN updated_at TEXT DEFAULT (datetime('now'))",
+      'ALTER TABLE memories ADD COLUMN confidence REAL DEFAULT 1.0',
+    ];
+    for (const sql of alterStatements) {
+      try {
+        this.db.exec(sql);
+      } catch {
+        // Column already exists — ignore
+      }
+    }
   }
 
   // --- People ---
@@ -209,7 +266,13 @@ export class MemoryDB {
   getMemory(id: number): Memory | null {
     const row = this.db.prepare('SELECT * FROM memories WHERE id = ?').get(id) as any;
     if (!row) return null;
-    return { ...row, tags: JSON.parse(row.tags) };
+    return {
+      ...row,
+      tags: JSON.parse(row.tags),
+      source: row.source ?? null,
+      confidence: row.confidence ?? 1.0,
+      updated_at: row.updated_at ?? row.created_at,
+    };
   }
 
   searchMemories(query: string, limit = 20): Memory[] {
@@ -222,7 +285,13 @@ export class MemoryDB {
        LIMIT ?`
       )
       .all(query, limit) as any[];
-    return rows.map((r) => ({ ...r, tags: JSON.parse(r.tags) }));
+    return rows.map((r) => ({
+      ...r,
+      tags: JSON.parse(r.tags),
+      source: r.source ?? null,
+      confidence: r.confidence ?? 1.0,
+      updated_at: r.updated_at ?? r.created_at,
+    }));
   }
 
   listMemories(opts: { type?: string; person_id?: string; limit: number }): Memory[] {
@@ -246,7 +315,13 @@ export class MemoryDB {
     params.push(opts.limit);
 
     const rows = this.db.prepare(sql).all(...params) as any[];
-    return rows.map((r) => ({ ...r, tags: JSON.parse(r.tags) }));
+    return rows.map((r) => ({
+      ...r,
+      tags: JSON.parse(r.tags),
+      source: r.source ?? null,
+      confidence: r.confidence ?? 1.0,
+      updated_at: r.updated_at ?? r.created_at,
+    }));
   }
 
   // --- Reflections ---
@@ -374,6 +449,102 @@ export class MemoryDB {
     }
 
     return result;
+  }
+
+  // --- Conversation Turns ---
+
+  addTurn(channelId: string, role: 'user' | 'assistant', content: string): number {
+    const result = this.db
+      .prepare('INSERT INTO conversation_turns (channel_id, role, content) VALUES (?, ?, ?)')
+      .run(channelId, role, content);
+    return Number(result.lastInsertRowid);
+  }
+
+  getConversationChannelIds(): string[] {
+    const rows = this.db.prepare('SELECT DISTINCT channel_id FROM conversation_turns').all() as {
+      channel_id: string;
+    }[];
+    return rows.map((r) => r.channel_id);
+  }
+
+  getRecentTurns(channelId: string, limit = 5): ConversationTurn[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM conversation_turns
+         WHERE channel_id = ?
+         ORDER BY created_at DESC, id DESC
+         LIMIT ?`
+      )
+      .all(channelId, limit) as ConversationTurn[];
+    return rows.reverse();
+  }
+
+  getTurnCountSince(channelId: string, sinceId: number): number {
+    const row = this.db
+      .prepare('SELECT COUNT(*) as count FROM conversation_turns WHERE channel_id = ? AND id > ?')
+      .get(channelId, sinceId) as { count: number };
+    return row.count;
+  }
+
+  // --- Conversation Summaries ---
+
+  upsertSummary(channelId: string, summary: string, turnCount: number, lastTurnId: number): void {
+    this.db
+      .prepare(
+        `INSERT INTO conversation_summaries (channel_id, summary, turn_count, last_turn_id)
+         VALUES (?, ?, ?, ?)`
+      )
+      .run(channelId, summary, turnCount, lastTurnId);
+  }
+
+  getSummary(channelId: string): ConversationSummary | null {
+    return (
+      (this.db
+        .prepare(
+          'SELECT * FROM conversation_summaries WHERE channel_id = ? ORDER BY id DESC LIMIT 1'
+        )
+        .get(channelId) as ConversationSummary | undefined) ?? null
+    );
+  }
+
+  // --- Relevant Memory Search ---
+
+  searchRelevantMemories(query: string, opts: { type?: string; limit?: number } = {}): Memory[] {
+    const limit = opts.limit ?? 8;
+    if (opts.type) {
+      const rows = this.db
+        .prepare(
+          `SELECT m.* FROM memories_fts fts
+           JOIN memories m ON m.id = fts.rowid
+           WHERE memories_fts MATCH ? AND m.type = ?
+           ORDER BY rank
+           LIMIT ?`
+        )
+        .all(query, opts.type, limit) as any[];
+      return rows.map((r) => ({
+        ...r,
+        tags: JSON.parse(r.tags),
+        source: r.source ?? null,
+        confidence: r.confidence ?? 1.0,
+        updated_at: r.updated_at ?? r.created_at,
+      }));
+    }
+    const rows = this.db
+      .prepare(
+        `SELECT m.* FROM memories_fts fts
+         JOIN memories m ON m.id = fts.rowid
+         WHERE memories_fts MATCH ?
+         ORDER BY rank
+         LIMIT ?`
+      )
+      .all(query, limit) as any[];
+    return rows.map((r) => ({
+      ...r,
+      tags: JSON.parse(r.tags),
+      source: r.source ?? null,
+      confidence: r.confidence ?? 1.0,
+      updated_at: r.updated_at ?? r.created_at,
+    }));
   }
 
   close(): void {

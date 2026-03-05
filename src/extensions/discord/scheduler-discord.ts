@@ -1,5 +1,5 @@
 import type { Client } from 'discord.js';
-import { type Brain, Priority } from '../../core/brain/brain.js';
+import { type MessageBus, Priority } from '../../core/bus/message-bus.js';
 import type { Scheduler } from '../../core/scheduler/scheduler.js';
 
 import type { Config } from '../../core/shared/config.js';
@@ -15,7 +15,7 @@ import { isSendableChannel } from './channel-utils.js';
 export function registerSchedulerHandlers(
   scheduler: Scheduler,
   client: Client,
-  getBrain: () => Brain,
+  getBus: () => MessageBus,
   config: Config
 ): void {
   // メッセージ送信関数
@@ -34,17 +34,17 @@ export function registerSchedulerHandlers(
     }
 
     try {
-      const brain = getBrain();
-      // system schedule → brain.submit() with Priority.EVENT
-      // user schedule → brain.run() (Priority.USER)
+      const bus = getBus();
+      // system schedule → bus.submit() with Priority.EVENT
+      // user schedule → bus.run() (Priority.USER)
       const { result } =
         options?.source === 'system'
-          ? await brain.submit({
+          ? await bus.submit({
               prompt,
               priority: Priority.EVENT,
               options: { channelId },
             })
-          : await brain.run(prompt, { channelId });
+          : await bus.run(prompt, { channelId });
 
       // ファイルパス抽出
       const filePaths = extractFilePaths(result, config.agent.workdir);

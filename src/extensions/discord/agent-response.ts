@@ -1,5 +1,5 @@
 import type { Message } from 'discord.js';
-import type { Brain } from '../../core/brain/brain.js';
+import type { MessageBus } from '../../core/bus/message-bus.js';
 
 import type { Config } from '../../core/shared/config.js';
 import {
@@ -99,7 +99,7 @@ async function sendResultToDiscord(
  */
 export async function processPrompt(
   message: Message,
-  brain: Brain,
+  bus: MessageBus,
   prompt: string,
   channelId: string,
   config: Config
@@ -172,7 +172,7 @@ export async function processPrompt(
     };
 
     try {
-      const streamResult = await brain.runStream(
+      const streamResult = await bus.runStream(
         prompt,
         {
           onText: (_chunk, fullText) => {
@@ -247,19 +247,16 @@ export async function processPrompt(
     }
     try {
       logger.info('Sending error follow-up to agent');
-      const sessionId = brain.getSessionId();
-      if (sessionId) {
-        const followUpPrompt =
-          'The previous request was interrupted by an error (timeout etc). Please briefly report what work was done and the current state.';
-        const followUpResult = await brain.run(followUpPrompt, {
-          channelId,
-          guildId: message.guildId ?? undefined,
-        });
-        if (followUpResult.result) {
-          const followUpText = followUpResult.result.slice(0, DISCORD_SAFE_LENGTH);
-          if (isSendableChannel(message.channel)) {
-            await message.channel.send(`**Error report:**\n${followUpText}`);
-          }
+      const followUpPrompt =
+        'The previous request was interrupted by an error (timeout etc). Please briefly report what work was done and the current state.';
+      const followUpResult = await bus.run(followUpPrompt, {
+        channelId,
+        guildId: message.guildId ?? undefined,
+      });
+      if (followUpResult.result) {
+        const followUpText = followUpResult.result.slice(0, DISCORD_SAFE_LENGTH);
+        if (isSendableChannel(message.channel)) {
+          await message.channel.send(`**Error report:**\n${followUpText}`);
         }
       }
     } catch (followUpError) {

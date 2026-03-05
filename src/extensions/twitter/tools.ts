@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
 import { mcpText, type ToolDefinition } from '../../core/mcp/context.js';
-import type { MemoryDB } from '../../core/memory/memory-db.js';
+import type { MemoryStore } from '../../core/memory/store.js';
 import { TWEET_MAX_LENGTH } from '../../core/shared/constants.js';
 import { toErrorMessage } from '../../core/shared/error-utils.js';
 import { createLogger } from '../../core/shared/logger.js';
@@ -29,7 +29,7 @@ function checkSecurity(
 
 /** Record outbound tweet/reply to audit log. */
 function recordAudit(
-  memoryDb: MemoryDB | undefined,
+  memoryDb: MemoryStore | undefined,
   text: string,
   tags: string[],
   context: string
@@ -47,7 +47,7 @@ export function createTwitterTools(
   twitterClient: TwitterClient,
   outputFilter?: OutputFilter,
   rateLimiter?: RateLimiter,
-  memoryDb?: MemoryDB
+  memoryDb?: MemoryStore
 ): ToolDefinition[] {
   const twitterTimeline: ToolDefinition = {
     name: 'twitter_timeline',

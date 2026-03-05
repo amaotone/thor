@@ -1,12 +1,11 @@
 export interface RunOptions {
-  sessionId?: string;
   channelId?: string;
   guildId?: string;
 }
 
 export interface RunResult {
   result: string;
-  sessionId: string;
+  sessionId?: string;
 }
 
 export interface StreamCallbacks {

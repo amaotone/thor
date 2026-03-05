@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, jest, mock } from 'bun:test';
-import type { Brain } from '../src/core/brain/brain.js';
+import type { MessageBus } from '../src/core/bus/message-bus.js';
 import {
   buildSlashCommands,
   formatChannelStatus,
@@ -8,25 +8,24 @@ import {
 } from '../src/extensions/discord/slash-commands.js';
 
 // ─── Test helpers ──────────────────────────────────────────
-function createMockBrain(overrides: Partial<Brain> = {}): Brain {
+function createMockBus(overrides: Partial<MessageBus> = {}): MessageBus {
   return {
-    run: mock().mockResolvedValue({ result: 'done', sessionId: 'test' }),
-    runStream: mock().mockResolvedValue({ result: 'done', sessionId: 'test' }),
+    run: mock().mockResolvedValue({ result: 'done' }),
+    runStream: mock().mockResolvedValue({ result: 'done' }),
     cancel: mock().mockReturnValue(false),
     cancelAll: mock().mockReturnValue(0),
     shutdown: mock(),
     isBusy: mock().mockReturnValue(false),
     getIdleTime: mock().mockReturnValue(0),
-    getSessionId: mock().mockReturnValue(''),
     getStatus: mock().mockReturnValue({
       busy: false,
       queueLength: 0,
       currentPriority: null,
+      currentCorrelationId: null,
       alive: false,
-      sessionId: '',
     }),
     ...overrides,
-  } as unknown as Brain;
+  } as unknown as MessageBus;
 }
 
 function createMockInteraction(commandName: string, options: Record<string, unknown> = {}) {
@@ -47,7 +46,7 @@ function createMockInteraction(commandName: string, options: Record<string, unkn
 
 function createDeps(overrides: Partial<SlashCommandDeps> = {}): SlashCommandDeps {
   return {
-    brain: createMockBrain(),
+    bus: createMockBus(),
     scheduler: {} as SlashCommandDeps['scheduler'],
     config: { discord: {}, agent: {} } as SlashCommandDeps['config'],
     processingChannels: new Map(),
@@ -59,43 +58,29 @@ function createDeps(overrides: Partial<SlashCommandDeps> = {}): SlashCommandDeps
 // ─── formatChannelStatus ───────────────────────────────────
 describe('formatChannelStatus', () => {
   it('should show idle status when no processing', () => {
-    const brain = createMockBrain();
-    const result = formatChannelStatus('ch-1', new Map(), brain);
+    const bus = createMockBus();
+    const result = formatChannelStatus('ch-1', new Map(), bus);
     expect(result).toContain('idle');
   });
 
   it('should show processing count when channel is active', () => {
-    const brain = createMockBrain();
+    const bus = createMockBus();
     const channels = new Map([['ch-1', 3]]);
-    const result = formatChannelStatus('ch-1', channels, brain);
+    const result = formatChannelStatus('ch-1', channels, bus);
     expect(result).toContain('3 tasks');
   });
 
-  it('should show session id when present', () => {
-    const brain = createMockBrain({
-      getStatus: mock().mockReturnValue({
-        busy: false,
-        queueLength: 0,
-        currentPriority: null,
-        alive: true,
-        sessionId: 'abcdef123456789',
-      }),
-    });
-    const result = formatChannelStatus('ch-1', new Map(), brain);
-    expect(result).toContain('abcdef123456...');
-  });
-
-  it('should show brain status', () => {
-    const brain = createMockBrain({
+  it('should show bus status', () => {
+    const bus = createMockBus({
       getStatus: mock().mockReturnValue({
         busy: true,
         queueLength: 2,
         currentPriority: 0,
+        currentCorrelationId: null,
         alive: true,
-        sessionId: 'test-session',
       }),
     });
-    const result = formatChannelStatus('ch-1', new Map(), brain);
+    const result = formatChannelStatus('ch-1', new Map(), bus);
     expect(result).toContain('busy');
     expect(result).toContain('queue: 2');
   });
@@ -131,7 +116,7 @@ describe('handleSlashCommand', () => {
 
   it('should handle /stop with active tasks', async () => {
     const deps = createDeps({
-      brain: createMockBrain({ cancelAll: mock().mockReturnValue(2) }),
+      bus: createMockBus({ cancelAll: mock().mockReturnValue(2) }),
       processingChannels: new Map([['ch-test', 3]]),
     });
     const interaction = createMockInteraction('stop');

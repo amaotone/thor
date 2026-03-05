@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, jest, mock } from 'bun:test';
 import { EventEmitter } from 'node:events';
+import { RunContext } from '../src/core/mcp/context.js';
 import type { StreamCallbacks } from '../src/core/ports/agent-runner.js';
 import { CliRunner } from '../src/extensions/agent-cli/cli-runner.js';
-import { RunContext } from '../src/core/mcp/context.js';
 
 /** Create a mock child process with stdout/stderr as EventEmitters */
 function createMockChild() {
@@ -22,6 +22,8 @@ describe('CliRunner', () => {
   const mockWriteFileSync = mock();
 
   beforeEach(() => {
+    mockSpawn.mockReset();
+    mockWriteFileSync.mockReset();
     runContext = new RunContext();
     mockChild = createMockChild();
     mockSpawn.mockReturnValue(mockChild);
@@ -47,61 +49,72 @@ describe('CliRunner', () => {
     jest.restoreAllMocks();
   });
 
-  it('should spawn claude with correct arguments', async () => {
+  it('should spawn claude without --resume', async () => {
     const promise = runner.runStream('hello', {}, { channelId: 'ch-1' });
 
-    // Simulate successful run
     setTimeout(() => {
-      const initMsg = JSON.stringify({ type: 'system', subtype: 'init', session_id: 'sess-123' });
       const resultMsg = JSON.stringify({
         type: 'result',
         subtype: 'success',
         result: 'Hello!',
-        session_id: 'sess-123',
       });
-      mockChild.stdout.emit('data', Buffer.from(`${initMsg}\n${resultMsg}\n`));
+      mockChild.stdout.emit('data', Buffer.from(`${resultMsg}\n`));
       mockChild.emit('close', 0);
     }, 10);
 
     await promise;
 
-    expect(mockSpawn).toHaveBeenCalledWith(
-      'claude',
-      expect.arrayContaining([
-        '-p',
-        '--output-format',
-        'stream-json',
-        '--model',
-        'sonnet',
-        'hello',
-      ]),
-      expect.objectContaining({ cwd: '/workspace' })
-    );
+    const args = mockSpawn.mock.calls[0][1] as string[];
+    expect(args).toContain('-p');
+    expect(args).toContain('--output-format');
+    expect(args).not.toContain('--resume');
   });
 
-  it('should parse session_id from init message', async () => {
-    const promise = runner.runStream('test', {});
+  it('should spawn claude with --resume when session exists', async () => {
+    const sessionStore = {
+      get: mock().mockReturnValue('sess_12345678'),
+      set: mock(),
+      clear: mock(),
+    };
+
+    const runnerWithSession = new CliRunner(
+      {
+        model: 'sonnet',
+        timeoutMs: 5000,
+        workdir: '/workspace',
+        mcpServerUrl: 'http://127.0.0.1:18765/mcp',
+        sessionStore,
+        deps: {
+          spawn: mockSpawn as any,
+          writeFileSync: mockWriteFileSync as any,
+        },
+      },
+      runContext
+    );
+    runnerWithSession.init();
+
+    const promise = runnerWithSession.runStream('hello', {}, { channelId: 'ch-1' });
 
     setTimeout(() => {
-      const lines = [
-        JSON.stringify({ type: 'system', subtype: 'init', session_id: 'abc-def-123' }),
-        JSON.stringify({
-          type: 'result',
-          subtype: 'success',
-          result: 'done',
-          session_id: 'abc-def-123',
-        }),
-      ].join('\n');
-      mockChild.stdout.emit('data', Buffer.from(`${lines}\n`));
+      const resultMsg = JSON.stringify({
+        type: 'result',
+        subtype: 'success',
+        result: 'Hello!',
+      });
+      mockChild.stdout.emit('data', Buffer.from(`${resultMsg}\n`));
       mockChild.emit('close', 0);
     }, 10);
 
-    const result = await promise;
-    expect(result.sessionId).toBe('abc-def-123');
-    expect(runner.getSessionId()).toBe('abc-def-123');
+    await promise;
+
+    const args = mockSpawn.mock.calls[mockSpawn.mock.calls.length - 1][1] as string[];
+    const resumeIndex = args.indexOf('--resume');
+    expect(resumeIndex).toBeGreaterThan(-1);
+    expect(args[resumeIndex + 1]).toBe('sess_12345678');
+    expect(sessionStore.get).toHaveBeenCalledWith('ch-1');
   });
 
-  it('should call onText callback for text content', async () => {
+  it('should call onText callback for text content via stream_event', async () => {
     const onText = mock();
     const callbacks: StreamCallbacks = { onText };
 
@@ -109,16 +122,17 @@ describe('CliRunner', () => {
 
     setTimeout(() => {
       const lines = [
-        JSON.stringify({ type: 'system', subtype: 'init', session_id: 's1' }),
         JSON.stringify({
-          type: 'assistant',
-          message: { content: [{ type: 'text', text: 'Hello world' }] },
+          type: 'stream_event',
+          event: {
+            type: 'content_block_delta',
+            delta: { type: 'text_delta', text: 'Hello world' },
+          },
         }),
         JSON.stringify({
           type: 'result',
           subtype: 'success',
           result: 'Hello world',
-          session_id: 's1',
         }),
       ].join('\n');
       mockChild.stdout.emit('data', Buffer.from(`${lines}\n`));
@@ -137,14 +151,13 @@ describe('CliRunner', () => {
 
     setTimeout(() => {
       const lines = [
-        JSON.stringify({ type: 'system', subtype: 'init', session_id: 's1' }),
         JSON.stringify({
           type: 'assistant',
           message: {
             content: [{ type: 'tool_use', name: 'discord_post', input: { channel_id: '123' } }],
           },
         }),
-        JSON.stringify({ type: 'result', subtype: 'success', result: '', session_id: 's1' }),
+        JSON.stringify({ type: 'result', subtype: 'success', result: '' }),
       ].join('\n');
       mockChild.stdout.emit('data', Buffer.from(`${lines}\n`));
       mockChild.emit('close', 0);
@@ -162,12 +175,11 @@ describe('CliRunner', () => {
 
     setTimeout(() => {
       const lines = [
-        JSON.stringify({ type: 'system', subtype: 'init', session_id: 's1' }),
         JSON.stringify({
           type: 'stream_event',
           event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hi' } },
         }),
-        JSON.stringify({ type: 'result', subtype: 'success', result: 'Hi', session_id: 's1' }),
+        JSON.stringify({ type: 'result', subtype: 'success', result: 'Hi' }),
       ].join('\n');
       mockChild.stdout.emit('data', Buffer.from(`${lines}\n`));
       mockChild.emit('close', 0);
@@ -204,34 +216,6 @@ describe('CliRunner', () => {
     await expect(promise).rejects.toThrow('Something went wrong');
   });
 
-  it('should include --resume when session exists', async () => {
-    runner.setSessionId('existing-session');
-
-    const promise = runner.runStream('test', {});
-
-    setTimeout(() => {
-      const lines = [
-        JSON.stringify({ type: 'system', subtype: 'init', session_id: 'existing-session' }),
-        JSON.stringify({
-          type: 'result',
-          subtype: 'success',
-          result: 'ok',
-          session_id: 'existing-session',
-        }),
-      ].join('\n');
-      mockChild.stdout.emit('data', Buffer.from(`${lines}\n`));
-      mockChild.emit('close', 0);
-    }, 10);
-
-    await promise;
-
-    expect(mockSpawn).toHaveBeenCalledWith(
-      'claude',
-      expect.arrayContaining(['--resume', 'existing-session']),
-      expect.any(Object)
-    );
-  });
-
   it('should report isBusy during run', async () => {
     expect(runner.isBusy()).toBe(false);
 
@@ -245,7 +229,6 @@ describe('CliRunner', () => {
         type: 'result',
         subtype: 'success',
         result: '',
-        session_id: 's',
       });
       mockChild.stdout.emit('data', Buffer.from(`${line}\n`));
       mockChild.emit('close', 0);
@@ -267,7 +250,6 @@ describe('CliRunner', () => {
         type: 'result',
         subtype: 'success',
         result: '',
-        session_id: 's',
       });
       mockChild.stdout.emit('data', Buffer.from(`${line}\n`));
       mockChild.emit('close', 0);
@@ -276,5 +258,70 @@ describe('CliRunner', () => {
     await promise;
     // Context should be cleared
     expect(runContext.get().channelId).toBe('');
+  });
+
+  it('should not include sessionId in RunResult', async () => {
+    const promise = runner.runStream('test', {});
+
+    setTimeout(() => {
+      const line = JSON.stringify({
+        type: 'result',
+        subtype: 'success',
+        result: 'done',
+      });
+      mockChild.stdout.emit('data', Buffer.from(`${line}\n`));
+      mockChild.emit('close', 0);
+    }, 10);
+
+    const result = await promise;
+    expect(result.result).toBe('done');
+    expect(result.sessionId).toBeUndefined();
+  });
+
+  it('should return and persist sessionId when found in stream-json', async () => {
+    const sessionStore = {
+      get: mock().mockReturnValue(undefined),
+      set: mock(),
+      clear: mock(),
+    };
+
+    const runnerWithSession = new CliRunner(
+      {
+        model: 'sonnet',
+        timeoutMs: 5000,
+        workdir: '/workspace',
+        mcpServerUrl: 'http://127.0.0.1:18765/mcp',
+        sessionStore,
+        deps: {
+          spawn: mockSpawn as any,
+          writeFileSync: mockWriteFileSync as any,
+        },
+      },
+      runContext
+    );
+    runnerWithSession.init();
+
+    const promise = runnerWithSession.runStream('test', {}, { channelId: 'ch-1' });
+
+    setTimeout(() => {
+      const lines = [
+        JSON.stringify({
+          type: 'assistant',
+          session_id: 'sess_new_87654321',
+          message: { content: [] },
+        }),
+        JSON.stringify({
+          type: 'result',
+          subtype: 'success',
+          result: 'done',
+        }),
+      ].join('\n');
+      mockChild.stdout.emit('data', Buffer.from(`${lines}\n`));
+      mockChild.emit('close', 0);
+    }, 10);
+
+    const result = await promise;
+    expect(result.sessionId).toBe('sess_new_87654321');
+    expect(sessionStore.set).toHaveBeenCalledWith('ch-1', 'sess_new_87654321');
   });
 });

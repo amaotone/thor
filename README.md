@@ -15,7 +15,8 @@ It is designed for single-user operation and runs Claude Code CLI with a priorit
 - **Heartbeat loop** for autonomous background checks (`HEARTBEAT.md`).
 - **Scheduler** with natural language parsing (`30分後`, `毎日 9:00`, cron, startup tasks).
 - **MCP tools** for Discord, schedules, memory, and Twitter (when enabled).
-- **Memory DB** (`bun:sqlite`) for long-term observations, people, and reflections.
+- **File-based memory store** (`context/memory/*.jsonl`) for long-term observations, people, and reflections.
+- **Session continuity** per channel via `--resume` + `.thor/sessions.json`.
 - **Workspace-driven behavior** via `USER.md`, `SOUL.md`, `CONTENT_POLICY.md`.
 - **File return support** via `MEDIA:/absolute/path/to/file` in model output.
 

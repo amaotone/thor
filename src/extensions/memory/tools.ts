@@ -1,12 +1,12 @@
 import { z } from 'zod/v4';
 import { mcpText, type ToolDefinition } from '../../core/mcp/context.js';
-import type { MemoryDB } from '../../core/memory/memory-db.js';
+import type { MemoryStore } from '../../core/memory/store.js';
 import { toErrorMessage } from '../../core/shared/error-utils.js';
 import { createLogger } from '../../core/shared/logger.js';
 
 const logger = createLogger('mcp-memory');
 
-export function createMemoryTools(db: MemoryDB): ToolDefinition[] {
+export function createMemoryTools(db: MemoryStore): ToolDefinition[] {
   const memoryRemember: ToolDefinition = {
     name: 'memory_remember',
     description:
@@ -47,7 +47,7 @@ export function createMemoryTools(db: MemoryDB): ToolDefinition[] {
     description:
       'Search and recall memories. Use a keyword query for full-text search, or omit to list recent memories.',
     schema: z.object({
-      query: z.string().optional().describe('Search keywords (FTS5)'),
+      query: z.string().optional().describe('Search keywords'),
       type: z
         .enum(['conversation', 'observation', 'knowledge', 'reflection'])
         .optional()

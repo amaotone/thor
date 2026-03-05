@@ -1,18 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
-import type { BrainRunner } from '../src/core/brain/brain.js';
-import { Brain, Priority } from '../src/core/brain/brain.js';
+import type { BusRunner } from '../src/core/bus/message-bus.js';
+import { MessageBus, Priority } from '../src/core/bus/message-bus.js';
 
-function createMockRunner(): BrainRunner {
+function createMockRunner(): BusRunner {
   return {
-    run: mock().mockResolvedValue({ result: 'done', sessionId: 'sess-1' }),
+    run: mock().mockResolvedValue({ result: 'done' }),
     runStream: mock().mockImplementation(
-      (
-        _prompt: string,
-        callbacks: { onComplete?: (result: { result: string; sessionId: string }) => void }
-      ) => {
+      (_prompt: string, callbacks: { onComplete?: (result: { result: string }) => void }) => {
         return new Promise((resolve) => {
           setTimeout(() => {
-            const result = { result: 'streamed', sessionId: 'sess-1' };
+            const result = { result: 'streamed' };
             callbacks.onComplete?.(result);
             resolve(result);
           }, 10);
@@ -23,75 +20,69 @@ function createMockRunner(): BrainRunner {
     shutdown: mock(),
     isBusy: mock().mockReturnValue(false),
     isAlive: mock().mockReturnValue(true),
-    getSessionId: mock().mockReturnValue('sess-1'),
-    setSessionId: mock(),
   };
 }
 
-describe('Brain', () => {
-  let brain: Brain;
-  let runner: BrainRunner;
+describe('MessageBus', () => {
+  let bus: MessageBus;
+  let runner: BusRunner;
 
   beforeEach(() => {
     runner = createMockRunner();
-    brain = new Brain(runner);
+    bus = new MessageBus(runner);
   });
 
   afterEach(() => {
-    brain.shutdown();
+    bus.shutdown();
   });
 
-  it('should create a Brain instance', () => {
-    expect(brain).toBeDefined();
-    expect(brain.run).toBeDefined();
-    expect(brain.runStream).toBeDefined();
+  it('should create a MessageBus instance', () => {
+    expect(bus).toBeDefined();
+    expect(bus.run).toBeDefined();
+    expect(bus.runStream).toBeDefined();
   });
 
-  it('should have getStatus method', () => {
-    const status = brain.getStatus();
+  it('should have getStatus method with correlationId', () => {
+    const status = bus.getStatus();
     expect(status).toHaveProperty('busy');
     expect(status).toHaveProperty('queueLength');
     expect(status).toHaveProperty('currentPriority');
+    expect(status).toHaveProperty('currentCorrelationId');
     expect(status).toHaveProperty('alive');
-    expect(status).toHaveProperty('sessionId');
+    expect(status.currentCorrelationId).toBeNull();
   });
 
   it('should submit tasks with USER priority via run()', async () => {
-    const result = await brain.run('hello');
+    const result = await bus.run('hello');
     expect(result).toBeDefined();
-    expect(result.sessionId).toBe('sess-1');
   });
 
   it('should submit tasks with USER priority via runStream()', async () => {
-    const result = await brain.runStream('hello', {});
+    const result = await bus.runStream('hello', {});
     expect(result).toBeDefined();
   });
 
   it('should cancel current task', () => {
-    const cancelled = brain.cancel();
+    const cancelled = bus.cancel();
     expect(cancelled).toBe(true);
   });
 
   it('should cancel all tasks', () => {
-    const count = brain.cancelAll();
+    const count = bus.cancelAll();
     expect(count).toBeGreaterThanOrEqual(0);
   });
 
   it('should track idle time', () => {
-    const idleTime = brain.getIdleTime();
+    const idleTime = bus.getIdleTime();
     expect(idleTime).toBeGreaterThanOrEqual(0);
   });
 
   it('should report busy state', () => {
-    expect(brain.isBusy()).toBe(false);
-  });
-
-  it('should get session ID', () => {
-    expect(brain.getSessionId()).toBe('sess-1');
+    expect(bus.isBusy()).toBe(false);
   });
 
   it('should accept tasks via submit with priority', async () => {
-    const result = await brain.submit({
+    const result = await bus.submit({
       prompt: 'heartbeat check',
       priority: Priority.HEARTBEAT,
     });

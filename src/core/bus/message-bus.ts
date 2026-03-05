@@ -2,7 +2,7 @@ import type { AgentRunner, RunOptions, RunResult, StreamCallbacks } from '../por
 import { CANCELLED_ERROR_MESSAGE } from '../shared/constants.js';
 import { createLogger } from '../shared/logger.js';
 
-const logger = createLogger('brain');
+const logger = createLogger('message-bus');
 
 /**
  * Task priority levels: lower number = higher priority
@@ -14,9 +14,9 @@ export enum Priority {
 }
 
 /**
- * A task submitted to the Brain
+ * A task submitted to the MessageBus
  */
-export interface BrainTask {
+export interface BusTask {
   prompt: string;
   priority: Priority;
   callbacks?: StreamCallbacks;
@@ -28,53 +28,53 @@ export interface BrainTask {
 }
 
 /**
- * Runner capabilities required by Brain
+ * Runner capabilities required by MessageBus
  */
-export interface BrainRunner extends AgentRunner {
+export interface BusRunner extends AgentRunner {
   cancel(): boolean;
   shutdown(): void;
   isBusy(): boolean;
   isAlive(): boolean;
-  getSessionId(): string;
-  setSessionId(sessionId: string): void;
 }
 
-export interface BrainStatus {
+export interface BusStatus {
   busy: boolean;
   queueLength: number;
   currentPriority: Priority | null;
+  currentCorrelationId: string | null;
   alive: boolean;
-  sessionId: string;
 }
 
-type QueueEntry = BrainTask & {
+type QueueEntry = BusTask & {
+  correlationId: string;
   resolve: (r: RunResult) => void;
   reject: (e: Error) => void;
 };
 
 /**
- * Brain: single consciousness for all modes (reactive, autonomous, event-driven)
+ * MessageBus: single consciousness for all modes (reactive, autonomous, event-driven)
  *
  * Wraps a single runner with a priority queue.
  * USER messages preempt HEARTBEAT tasks (cancel-on-preempt).
  */
-export class Brain implements AgentRunner {
-  private runner: BrainRunner;
+export class MessageBus implements AgentRunner {
+  private runner: BusRunner;
   private queue: QueueEntry[] = [];
   private currentTask: QueueEntry | null = null;
   private lastActivityTime = Date.now();
 
-  constructor(runner: BrainRunner) {
+  constructor(runner: BusRunner) {
     this.runner = runner;
-    logger.info('Brain initialized');
+    logger.info('MessageBus initialized');
   }
 
   /**
-   * Submit a task to the brain with priority
+   * Submit a task to the message bus with priority
    */
-  submit(task: BrainTask): Promise<RunResult> {
+  submit(task: BusTask): Promise<RunResult> {
     return new Promise<RunResult>((resolve, reject) => {
-      const entry = { ...task, resolve, reject };
+      const correlationId = crypto.randomUUID();
+      const entry = { ...task, correlationId, resolve, reject };
 
       // If a higher-priority task arrives while a lower-priority task is running, cancel current
       if (this.currentTask && task.priority < this.currentTask.priority) {
@@ -149,11 +149,11 @@ export class Brain implements AgentRunner {
   }
 
   /**
-   * Shutdown the brain
+   * Shutdown the message bus
    */
   shutdown(): void {
-    logger.info('Shutting down brain...');
-    const error = new Error('Brain is shutting down');
+    logger.info('Shutting down message bus...');
+    const error = new Error('MessageBus is shutting down');
     for (const item of this.queue) {
       item.callbacks?.onError?.(error);
       item.reject(error);
@@ -164,7 +164,7 @@ export class Brain implements AgentRunner {
   }
 
   /**
-   * Whether the brain is currently processing a task
+   * Whether the bus is currently processing a task
    */
   isBusy(): boolean {
     return this.runner.isBusy();
@@ -178,29 +178,15 @@ export class Brain implements AgentRunner {
   }
 
   /**
-   * Get the current session ID
+   * Get bus status
    */
-  getSessionId(): string {
-    return this.runner.getSessionId();
-  }
-
-  /**
-   * Set the session ID for resume
-   */
-  setSessionId(sessionId: string): void {
-    this.runner.setSessionId(sessionId);
-  }
-
-  /**
-   * Get brain status
-   */
-  getStatus(): BrainStatus {
+  getStatus(): BusStatus {
     return {
       busy: this.runner.isBusy(),
       queueLength: this.queue.length,
       currentPriority: this.currentTask?.priority ?? null,
+      currentCorrelationId: this.currentTask?.correlationId ?? null,
       alive: this.runner.isAlive(),
-      sessionId: this.runner.getSessionId(),
     };
   }
 
@@ -242,11 +228,6 @@ export class Brain implements AgentRunner {
         this.processNext();
       },
     };
-
-    // Use sessionId from options if provided
-    if (task.options?.sessionId) {
-      this.runner.setSessionId(task.options.sessionId);
-    }
 
     this.runner.runStream(task.prompt, wrappedCallbacks, task.options).catch((error) => {
       // runStream rejection is already handled by wrappedCallbacks.onError

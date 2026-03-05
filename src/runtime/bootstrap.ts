@@ -1,10 +1,14 @@
 import { copyFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Brain, Priority } from '../core/brain/brain.js';
-import { Heartbeat } from '../core/brain/heartbeat.js';
+import { Heartbeat, MessageBus, Priority } from '../core/bus/index.js';
+import { FileConversationStore } from '../core/context/file-conversation-store.js';
+import { FileGoalManager } from '../core/context/file-goal-manager.js';
+import { ContextBuilder, ConversationSummarizer } from '../core/context/index.js';
+import { migrateToFiles } from '../core/context/migrate-to-files.js';
 import { RunContext } from '../core/mcp/index.js';
 import { MemoryDB } from '../core/memory/memory-db.js';
+import { WorkspaceMemoryStore } from '../core/memory/workspace-memory-store.js';
 import { Scheduler } from '../core/scheduler/scheduler.js';
 import { buildSystemSchedules } from '../core/scheduler/system-schedules.js';
 import { loadConfig } from '../core/shared/config.js';
@@ -12,13 +16,14 @@ import { DISCORD_SAFE_LENGTH } from '../core/shared/constants.js';
 import { createLogger } from '../core/shared/logger.js';
 import { splitMessage } from '../core/shared/message-utils.js';
 import { initSettings, loadSettings } from '../core/shared/settings.js';
-import { CliRunner } from '../extensions/agent-cli/index.js';
+import { CliRunner, FileSessionStore } from '../extensions/agent-cli/index.js';
 import {
   createDiscordTools,
   isSendableChannel,
   registerSchedulerHandlers,
   setupDiscordClient,
 } from '../extensions/discord/index.js';
+import { createGoalTools } from '../extensions/goal/index.js';
 import { createMemoryTools } from '../extensions/memory/index.js';
 import { createScheduleTools } from '../extensions/scheduler/index.js';
 import {
@@ -78,17 +83,42 @@ export async function bootstrap(): Promise<void> {
   // データディレクトリと Memory DB を初期化
   const dataDir = join(workdir, '.thor');
   const memoryDb = new MemoryDB(join(dataDir, 'memory.db'));
+  const sessionStore = new FileSessionStore(join(dataDir, 'sessions.json'));
   const scheduler = new Scheduler(dataDir);
 
-  // Brain は遅延初期化（Discord client が必要）
-  let brain: Brain | null = null;
-  const getBrain = (): Brain => {
-    if (!brain) throw new Error('Brain not yet initialized');
-    return brain;
+  // Workspace-as-State: context ディレクトリ
+  const contextDir = join(workdir, 'context');
+
+  // SQLite → ファイルマイグレーション（冪等）
+  migrateToFiles(memoryDb, contextDir);
+  // Runtime memory is file-based; SQLite is migration-only.
+  memoryDb.close();
+  const memoryStore = new WorkspaceMemoryStore(contextDir);
+
+  // Context Engineering コンポーネントを初期化（ファイルベース）
+  const conversationStore = new FileConversationStore(contextDir);
+  const goalManager = new FileGoalManager(contextDir);
+  const summarizer = new ConversationSummarizer();
+  const contextBuilder = new ContextBuilder(
+    conversationStore,
+    goalManager,
+    summarizer,
+    memoryStore,
+    {
+      workdir,
+    }
+  );
+  logger.info('Context engineering components initialized (file-based)');
+
+  // MessageBus は遅延初期化（Discord client が必要）
+  let bus: MessageBus | null = null;
+  const getBus = (): MessageBus => {
+    if (!bus) throw new Error('MessageBus not yet initialized');
+    return bus;
   };
 
-  // Discord クライアントをセットアップ（getBrain で遅延アクセス）
-  const client = setupDiscordClient({ config, getBrain, scheduler });
+  // Discord クライアントをセットアップ（getBus で遅延アクセス）
+  const client = setupDiscordClient({ config, getBus, scheduler });
 
   // Discordボットを起動
   await client.login(config.discord.token);
@@ -125,9 +155,10 @@ export async function bootstrap(): Promise<void> {
   const tools = [
     ...createDiscordTools(client, runContext),
     ...createScheduleTools(scheduler, runContext),
-    ...(memoryDb ? createMemoryTools(memoryDb) : []),
+    ...createMemoryTools(memoryStore),
+    ...createGoalTools(goalManager, runContext),
     ...(twitterClient
-      ? createTwitterTools(twitterClient, outputFilter, rateLimiter, memoryDb)
+      ? createTwitterTools(twitterClient, outputFilter, rateLimiter, memoryStore)
       : []),
   ];
   const mcpServer = await startHttpMcpServer(tools, mcpPort);
@@ -140,16 +171,18 @@ export async function bootstrap(): Promise<void> {
       timeoutMs: config.agent.timeoutMs,
       workdir,
       mcpServerUrl: mcpServer.url,
-      memoryDb,
+      contextBuilder,
+      conversationStore,
+      sessionStore,
     },
     runContext
   );
   runner.init();
-  brain = new Brain(runner);
-  logger.info('Brain initialized');
+  bus = new MessageBus(runner);
+  logger.info('MessageBus initialized');
 
   // スケジューラにDiscord連携関数を登録
-  registerSchedulerHandlers(scheduler, client, getBrain, config);
+  registerSchedulerHandlers(scheduler, client, getBus, config);
 
   // スケジューラの全ジョブを開始
   scheduler.startAll();
@@ -172,7 +205,7 @@ export async function bootstrap(): Promise<void> {
   // Heartbeat 作成・開始
   let heartbeat: Heartbeat | null = null;
   if (config.heartbeat.enabled && config.heartbeat.channelId) {
-    heartbeat = new Heartbeat(getBrain(), {
+    heartbeat = new Heartbeat(getBus(), {
       minIntervalMs: config.heartbeat.minIntervalMs,
       maxIntervalMs: config.heartbeat.maxIntervalMs,
       idleThresholdMs: config.heartbeat.idleThresholdMs,
@@ -223,7 +256,7 @@ export async function bootstrap(): Promise<void> {
         ? `[Twitter DM from owner @${mention.author_id}]: ${mention.text}${replyInstruction}`
         : `${sanitizer.wrapExternalInput(mention.author_id, mention.text)}${replyInstruction}`;
 
-      getBrain()
+      getBus()
         .submit({
           prompt,
           priority: isOwner ? Priority.USER : Priority.EVENT,
@@ -252,9 +285,9 @@ export async function bootstrap(): Promise<void> {
     heartbeat?.stop();
     scheduler.stopAll();
     twitterClient?.stop();
-    brain?.shutdown();
+    bus?.shutdown();
     await mcpServer.close();
-    memoryDb.close();
+    memoryStore.close?.();
     client.destroy();
     process.exit(0);
   });

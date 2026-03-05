@@ -2,8 +2,9 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { ContextBuilder } from '../../core/context/context-builder.js';
+import type { ConversationStorePort } from '../../core/context/ports.js';
 import type { RunContext } from '../../core/mcp/context.js';
-import type { MemoryDB } from '../../core/memory/memory-db.js';
 import type {
   AgentRunner,
   RunOptions,
@@ -11,12 +12,9 @@ import type {
   StreamCallbacks,
 } from '../../core/ports/agent-runner.js';
 import { mergeTexts } from '../../core/ports/agent-runner.js';
-import {
-  CANCELLED_ERROR_MESSAGE,
-  DEFAULT_TIMEOUT_MS,
-  SESSION_ID_DISPLAY_LENGTH,
-} from '../../core/shared/constants.js';
+import { CANCELLED_ERROR_MESSAGE, DEFAULT_TIMEOUT_MS } from '../../core/shared/constants.js';
 import { createLogger } from '../../core/shared/logger.js';
+import type { SessionStore } from './session-store.js';
 import { buildCliSystemPrompt } from './system-prompt.js';
 
 const logger = createLogger('cli-runner');
@@ -26,7 +24,9 @@ export interface CliRunnerOptions {
   timeoutMs?: number;
   workdir?: string;
   mcpServerUrl: string;
-  memoryDb?: MemoryDB;
+  contextBuilder?: ContextBuilder;
+  conversationStore?: ConversationStorePort;
+  sessionStore?: SessionStore;
   deps?: {
     spawn?: typeof spawn;
     writeFileSync?: typeof writeFileSync;
@@ -42,10 +42,10 @@ export class CliRunner implements AgentRunner {
   private timeoutMs: number;
   private workdir?: string;
   private mcpServerUrl: string;
-  private memoryDb?: MemoryDB;
+  private contextBuilder?: ContextBuilder;
+  private conversationStore?: ConversationStorePort;
+  private sessionStore?: SessionStore;
   private runContext: RunContext;
-  private sessionId = '';
-  private resumeSessionId?: string;
   private childProcess: ChildProcess | null = null;
   private wasCancelled = false;
   private _spawn: typeof spawn;
@@ -60,7 +60,9 @@ export class CliRunner implements AgentRunner {
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.workdir = options.workdir;
     this.mcpServerUrl = options.mcpServerUrl;
-    this.memoryDb = options.memoryDb;
+    this.contextBuilder = options.contextBuilder;
+    this.conversationStore = options.conversationStore;
+    this.sessionStore = options.sessionStore;
     this.runContext = runContext;
     this._spawn = options.deps?.spawn ?? spawn;
     this._writeFileSync = options.deps?.writeFileSync ?? writeFileSync;
@@ -85,7 +87,7 @@ export class CliRunner implements AgentRunner {
 
     // System prompt
     this.systemPromptPath = join(tmpdir(), `thor-prompt-${pid}.txt`);
-    const promptContent = buildCliSystemPrompt(this.workdir, this.memoryDb);
+    const promptContent = buildCliSystemPrompt(this.workdir);
     this._writeFileSync(this.systemPromptPath, promptContent);
     logger.info(`System prompt written to ${this.systemPromptPath}`);
   }
@@ -110,10 +112,24 @@ export class CliRunner implements AgentRunner {
       });
     }
 
-    const resumeId = options?.sessionId || this.resumeSessionId || this.sessionId;
+    // Build assembled prompt with context
+    let assembledPrompt = prompt;
+    if (this.contextBuilder && options?.channelId) {
+      try {
+        assembledPrompt = await this.contextBuilder.build(prompt, options.channelId);
+      } catch (err) {
+        logger.warn('Failed to build context, using raw prompt:', err);
+      }
+    }
+
+    // Record user turn
+    if (this.conversationStore && options?.channelId) {
+      this.conversationStore.addUserTurn(options.channelId, prompt);
+    }
 
     const args = [
       '-p',
+      '--verbose',
       '--output-format',
       'stream-json',
       '--include-partial-messages',
@@ -132,11 +148,14 @@ export class CliRunner implements AgentRunner {
       args.push('--model', this.model);
     }
 
-    if (resumeId) {
-      args.push('--resume', resumeId);
+    const resumedSessionId = options?.channelId
+      ? this.sessionStore?.get(options.channelId)
+      : undefined;
+    if (resumedSessionId) {
+      args.push('--resume', resumedSessionId);
     }
 
-    args.push(prompt);
+    args.push(assembledPrompt);
 
     return new Promise<RunResult>((resolve, reject) => {
       const child = this._spawn('claude', args, {
@@ -148,6 +167,7 @@ export class CliRunner implements AgentRunner {
 
       let fullText = '';
       let stderrData = '';
+      let sessionId = resumedSessionId;
 
       // Timeout
       const timeout = setTimeout(() => {
@@ -165,8 +185,18 @@ export class CliRunner implements AgentRunner {
         stdoutBuffer = lines.pop() ?? '';
         for (const line of lines) {
           if (!line.trim()) continue;
+
+          const sessionIdFromLine = this.extractSessionIdFromText(line);
+          if (sessionIdFromLine) {
+            sessionId = sessionIdFromLine;
+          }
+
           try {
             const message = JSON.parse(line);
+            const sessionIdFromMessage = this.extractSessionId(message);
+            if (sessionIdFromMessage) {
+              sessionId = sessionIdFromMessage;
+            }
             fullText = this.processMessage(message, callbacks, fullText);
           } catch {
             // ignore non-JSON lines
@@ -176,7 +206,12 @@ export class CliRunner implements AgentRunner {
 
       // Collect stderr
       child.stderr?.on('data', (chunk: Buffer) => {
-        stderrData += chunk.toString();
+        const chunkText = chunk.toString();
+        stderrData += chunkText;
+        const sessionIdFromStderr = this.extractSessionIdFromText(chunkText);
+        if (sessionIdFromStderr) {
+          sessionId = sessionIdFromStderr;
+        }
       });
 
       child.on('close', (code) => {
@@ -199,7 +234,19 @@ export class CliRunner implements AgentRunner {
           return;
         }
 
-        const result: RunResult = { result: fullText, sessionId: this.sessionId };
+        // Record assistant turn
+        if (this.conversationStore && options?.channelId && fullText) {
+          this.conversationStore.addAssistantTurn(options.channelId, fullText);
+        }
+
+        if (this.sessionStore && options?.channelId && sessionId) {
+          this.sessionStore.set(options.channelId, sessionId);
+        }
+
+        const result: RunResult = {
+          result: fullText,
+          ...(sessionId ? { sessionId } : {}),
+        };
         callbacks.onComplete?.(result);
         resolve(result);
       });
@@ -216,24 +263,13 @@ export class CliRunner implements AgentRunner {
 
   /**
    * Process a single NDJSON message from CLI stdout.
-   * Message format mirrors SDK's SDKMessage types.
    */
   private processMessage(message: any, callbacks: StreamCallbacks, fullText: string): string {
-    // system/init — capture session_id
-    if (message.type === 'system' && message.subtype === 'init') {
-      this.sessionId = message.session_id;
-      logger.info(`Session: ${this.sessionId.slice(0, SESSION_ID_DISPLAY_LENGTH)}...`);
-    }
-
-    // assistant — extract text/tool_use blocks
+    // assistant — extract tool_use blocks only (text comes via stream_event)
     if (message.type === 'assistant' && message.message?.content) {
       const content = message.message.content;
       if (Array.isArray(content)) {
         for (const block of content) {
-          if (block.type === 'text' && block.text) {
-            fullText += block.text;
-            callbacks.onText?.(block.text, fullText);
-          }
           if (block.type === 'tool_use' && block.name) {
             callbacks.onProgress?.(block.name, block.input);
           }
@@ -255,13 +291,8 @@ export class CliRunner implements AgentRunner {
 
     // result — final result
     if (message.type === 'result') {
-      if (message.session_id) {
-        this.sessionId = message.session_id;
-      }
-
       if (message.subtype === 'success' && message.result !== undefined) {
         fullText = mergeTexts(fullText, message.result);
-        callbacks.onComplete?.({ result: fullText, sessionId: this.sessionId });
       } else if (message.subtype !== 'success') {
         const errors = message.errors || [];
         const errorMsg = errors.join('; ') || 'Unknown error';
@@ -270,6 +301,42 @@ export class CliRunner implements AgentRunner {
     }
 
     return fullText;
+  }
+
+  private extractSessionId(value: unknown): string | undefined {
+    if (typeof value !== 'object' || value === null) return undefined;
+
+    const queue: unknown[] = [value];
+    const seen = new Set<object>();
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (typeof current !== 'object' || current === null) continue;
+      if (seen.has(current)) continue;
+      seen.add(current);
+
+      for (const [key, child] of Object.entries(current)) {
+        const normalized = key.toLowerCase();
+        if (
+          (normalized === 'session_id' || normalized === 'sessionid' || normalized === 'session') &&
+          typeof child === 'string' &&
+          child.length >= 8
+        ) {
+          return child;
+        }
+
+        if (typeof child === 'object' && child !== null) {
+          queue.push(child);
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  private extractSessionIdFromText(text: string): string | undefined {
+    const matched = text.match(/session(?:[_\s-]?id)?[^A-Za-z0-9_-]{0,3}([A-Za-z0-9_-]{8,})/i);
+    return matched?.[1];
   }
 
   cancel(): boolean {
@@ -285,17 +352,6 @@ export class CliRunner implements AgentRunner {
     if (this.childProcess) {
       this.wasCancelled = true;
       this.childProcess.kill('SIGTERM');
-    }
-  }
-
-  getSessionId(): string {
-    return this.sessionId;
-  }
-
-  setSessionId(sessionId: string): void {
-    this.resumeSessionId = sessionId;
-    if (!this.sessionId) {
-      this.sessionId = sessionId;
     }
   }
 

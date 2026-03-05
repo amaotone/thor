@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
-import { createDiscordTools, type DiscordToolsDeps } from '../src/extensions/discord/index.js';
 import { RunContext, type ToolDefinition } from '../src/core/mcp/index.js';
+import { createDiscordTools, type DiscordToolsDeps } from '../src/extensions/discord/index.js';
 
 const discordToolsDeps: DiscordToolsDeps = {
   isSendableChannel: ((ch: any) => ch && typeof ch.send === 'function') as any,
