@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { z } from 'zod';
 import {
   DEFAULT_TIMEOUT_MS,
+  DEFAULT_WORKSPACE_PATH,
   HEARTBEAT_IDLE_THRESHOLD_MS,
   HEARTBEAT_MAX_INTERVAL_MS,
   HEARTBEAT_MIN_INTERVAL_MS,
@@ -98,7 +99,7 @@ export function loadConfig(): Config {
     agent: {
       model: process.env.AGENT_MODEL || undefined,
       timeoutMs: parseIntEnv(process.env.TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
-      workdir: resolvePath(process.env.WORKSPACE_PATH || '~/thor_workspace'),
+      workdir: resolvePath(process.env.WORKSPACE_PATH || DEFAULT_WORKSPACE_PATH),
     },
     heartbeat: {
       enabled: process.env.HEARTBEAT_ENABLED !== 'false',

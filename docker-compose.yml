@@ -7,7 +7,7 @@ x-common: &common
     # Claude Code CLI 認証情報（コンテナ専用ボリューム）
     - claude-data:/home/bun/.claude
     # ワークスペース（エージェントの作業ディレクトリ）
-    - ${WORKSPACE_PATH:-~/thor_workspace}:/workspace
+    - ${WORKSPACE_PATH:-$HOME/thor_workspace}:/workspace
     # Git設定
     - ~/.gitconfig:/home/bun/.gitconfig:ro
   environment: &common-env

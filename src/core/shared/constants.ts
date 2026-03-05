@@ -48,5 +48,8 @@ export const TRIGGER_MORNING_HOUR = 8;
 export const TRIGGER_EVENING_HOUR = 22;
 export const TRIGGER_WEEKLY_DAY = 0; // Sunday
 
+// Workspace
+export const DEFAULT_WORKSPACE_PATH = '~/thor_workspace';
+
 // Schedule
 export const SCHEDULE_SEPARATOR = '{{SPLIT}}';

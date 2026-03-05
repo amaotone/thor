@@ -1,13 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolvePath } from './config.js';
-import { MAX_FILE_SIZE } from './constants.js';
+import { DEFAULT_WORKSPACE_PATH, MAX_FILE_SIZE } from './constants.js';
 import { createLogger } from './logger.js';
 
 const logger = createLogger('file-utils');
 
 const DOWNLOAD_DIR = path.join(
-  resolvePath(process.env.WORKSPACE_PATH || '~/thor_workspace'),
+  resolvePath(process.env.WORKSPACE_PATH || DEFAULT_WORKSPACE_PATH),
   '.thor',
   'media',
   'attachments'
