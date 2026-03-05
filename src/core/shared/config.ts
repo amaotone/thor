@@ -98,7 +98,7 @@ export function loadConfig(): Config {
     agent: {
       model: process.env.AGENT_MODEL || undefined,
       timeoutMs: parseIntEnv(process.env.TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
-      workdir: process.env.WORKSPACE_PATH ? resolvePath(process.env.WORKSPACE_PATH) : './workspace',
+      workdir: resolvePath(process.env.WORKSPACE_PATH || '~/thor_workspace'),
     },
     heartbeat: {
       enabled: process.env.HEARTBEAT_ENABLED !== 'false',

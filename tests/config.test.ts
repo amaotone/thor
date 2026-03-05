@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { homedir } from 'node:os';
+import { resolve } from 'node:path';
 
 describe('config', () => {
   const originalEnv = process.env;
@@ -31,14 +33,14 @@ describe('config', () => {
     expect(config.discord.allowedUsers).toContain('123456789');
   });
 
-  it('should default workdir to ./workspace', async () => {
+  it('should default workdir to ~/thor_workspace', async () => {
     process.env.DISCORD_TOKEN = 'test-token';
     delete process.env.WORKSPACE_PATH;
 
     const { loadConfig } = await import('../src/core/shared/config.js');
     const config = loadConfig();
 
-    expect(config.agent.workdir).toBe('./workspace');
+    expect(config.agent.workdir).toBe(resolve(homedir(), 'thor_workspace'));
   });
 
   it('should use WORKSPACE_PATH when set', async () => {

@@ -7,7 +7,7 @@ import { createLogger } from './logger.js';
 const logger = createLogger('file-utils');
 
 const DOWNLOAD_DIR = path.join(
-  process.env.WORKSPACE_PATH ? resolvePath(process.env.WORKSPACE_PATH) : './workspace',
+  resolvePath(process.env.WORKSPACE_PATH || '~/thor_workspace'),
   '.thor',
   'media',
   'attachments'
