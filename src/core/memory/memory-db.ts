@@ -6,6 +6,45 @@ export type { ConversationSummary, ConversationTurn };
 
 const logger = createLogger('memory-db');
 
+type SqliteValue = string | number | bigint | boolean | Uint8Array | null;
+
+interface PersonRow extends Omit<Person, 'tags'> {
+  tags: string;
+}
+
+interface MemoryRow extends Omit<Memory, 'tags'> {
+  tags: string;
+}
+
+interface ReflectionRow extends Omit<Reflection, 'lessons_learned'> {
+  lessons_learned: string | null;
+}
+
+interface ContentRow {
+  content: string;
+}
+
+interface TwitterInteractionRow {
+  username: string;
+  interaction_count: number;
+}
+
+interface ContextPersonRow {
+  username: string;
+  platform: string;
+  summary: string | null;
+}
+
+interface ContextMemoryRow {
+  type: string;
+  content: string;
+}
+
+interface ReflectionSummaryRow {
+  type: string;
+  content: string;
+}
+
 // --- Types ---
 
 export interface PersonInput {
@@ -197,7 +236,7 @@ export class MemoryDB {
   }
 
   getPerson(id: string): Person | null {
-    const row = this.db.prepare('SELECT * FROM people WHERE id = ?').get(id) as any;
+    const row = this.db.prepare('SELECT * FROM people WHERE id = ?').get(id) as PersonRow | null;
     if (!row) return null;
     return { ...row, tags: JSON.parse(row.tags) };
   }
@@ -217,7 +256,7 @@ export class MemoryDB {
 
   listPeople(opts: { platform?: string; limit: number }): Person[] {
     let sql = 'SELECT * FROM people';
-    const params: any[] = [];
+    const params: SqliteValue[] = [];
     if (opts.platform) {
       sql += ' WHERE platform = ?';
       params.push(opts.platform);
@@ -225,7 +264,7 @@ export class MemoryDB {
     sql += ' ORDER BY last_seen_at DESC LIMIT ?';
     params.push(opts.limit);
 
-    const rows = this.db.prepare(sql).all(...params) as any[];
+    const rows = this.db.prepare(sql).all(...params) as PersonRow[];
     return rows.map((r) => ({ ...r, tags: JSON.parse(r.tags) }));
   }
 
@@ -250,7 +289,7 @@ export class MemoryDB {
   }
 
   getMemory(id: number): Memory | null {
-    const row = this.db.prepare('SELECT * FROM memories WHERE id = ?').get(id) as any;
+    const row = this.db.prepare('SELECT * FROM memories WHERE id = ?').get(id) as MemoryRow | null;
     if (!row) return null;
     return {
       ...row,
@@ -270,13 +309,13 @@ export class MemoryDB {
        ORDER BY rank
        LIMIT ?`
       )
-      .all(query, limit) as any[];
+      .all(query, limit) as MemoryRow[];
     return rows.map((r) => this.mapMemoryRow(r));
   }
 
   listMemories(opts: { type?: string; person_id?: string; limit: number }): Memory[] {
     const conditions: string[] = [];
-    const params: any[] = [];
+    const params: SqliteValue[] = [];
 
     if (opts.type) {
       conditions.push('type = ?');
@@ -294,7 +333,7 @@ export class MemoryDB {
     sql += ' ORDER BY created_at DESC LIMIT ?';
     params.push(opts.limit);
 
-    const rows = this.db.prepare(sql).all(...params) as any[];
+    const rows = this.db.prepare(sql).all(...params) as MemoryRow[];
     return rows.map((r) => this.mapMemoryRow(r));
   }
 
@@ -316,14 +355,16 @@ export class MemoryDB {
   }
 
   getReflection(id: number): Reflection | null {
-    const row = this.db.prepare('SELECT * FROM reflections WHERE id = ?').get(id) as any;
+    const row = this.db
+      .prepare('SELECT * FROM reflections WHERE id = ?')
+      .get(id) as ReflectionRow | null;
     if (!row) return null;
     return { ...row, lessons_learned: JSON.parse(row.lessons_learned ?? '[]') };
   }
 
   listReflections(opts: { type?: string; limit: number }): Reflection[] {
     let sql = 'SELECT * FROM reflections';
-    const params: any[] = [];
+    const params: SqliteValue[] = [];
     if (opts.type) {
       sql += ' WHERE type = ?';
       params.push(opts.type);
@@ -331,7 +372,7 @@ export class MemoryDB {
     sql += ' ORDER BY created_at DESC LIMIT ?';
     params.push(opts.limit);
 
-    const rows = this.db.prepare(sql).all(...params) as any[];
+    const rows = this.db.prepare(sql).all(...params) as ReflectionRow[];
     return rows.map((r) => ({ ...r, lessons_learned: JSON.parse(r.lessons_learned ?? '[]') }));
   }
 
@@ -347,7 +388,7 @@ export class MemoryDB {
         .prepare(
           "SELECT content FROM memories WHERE tags LIKE '%audit%' AND tags LIKE '%outbound%' ORDER BY created_at DESC, id DESC LIMIT 10"
         )
-        .all() as any[]
+        .all() as ContentRow[]
     ).map((r) => r.content);
 
     const topInteractions = (
@@ -355,7 +396,7 @@ export class MemoryDB {
         .prepare(
           "SELECT username, interaction_count FROM people WHERE platform = 'twitter' ORDER BY interaction_count DESC LIMIT 5"
         )
-        .all() as any[]
+        .all() as TwitterInteractionRow[]
     ).map((r) => `${r.username} (${r.interaction_count} interactions)`);
 
     const recentTopics = (
@@ -363,8 +404,8 @@ export class MemoryDB {
         .prepare(
           "SELECT content FROM memories WHERE type = 'observation' AND created_at > datetime('now', '-7 days') ORDER BY created_at DESC LIMIT 10"
         )
-        .all() as any[]
-    ).map((r) => (r.content as string).slice(0, 100));
+        .all() as ContentRow[]
+    ).map((r) => r.content.slice(0, 100));
 
     return { recentTweets, topInteractions, recentTopics };
   }
@@ -380,11 +421,11 @@ export class MemoryDB {
        WHERE last_seen_at > datetime('now', '-1 day')
        ORDER BY last_seen_at DESC LIMIT 10`
       )
-      .all() as any[];
+      .all() as ContextPersonRow[];
 
     if (recentPeople.length > 0) {
       const lines = recentPeople.map(
-        (p: any) => `- ${p.username} (${p.platform})${p.summary ? `: ${p.summary}` : ''}`
+        (p) => `- ${p.username} (${p.platform})${p.summary ? `: ${p.summary}` : ''}`
       );
       sections.push(`### Recent People\n${lines.join('\n')}`);
     }
@@ -395,16 +436,16 @@ export class MemoryDB {
        WHERE created_at > datetime('now', '-1 day')
        ORDER BY importance DESC, created_at DESC LIMIT 10`
       )
-      .all() as any[];
+      .all() as ContextMemoryRow[];
 
     if (recentMemories.length > 0) {
-      const lines = recentMemories.map((m: any) => `- [${m.type}] ${m.content}`);
+      const lines = recentMemories.map((m) => `- [${m.type}] ${m.content}`);
       sections.push(`### Recent Memories\n${lines.join('\n')}`);
     }
 
     const latestReflection = this.db
       .prepare('SELECT type, content FROM reflections ORDER BY created_at DESC LIMIT 1')
-      .get() as any;
+      .get() as ReflectionSummaryRow | null;
 
     if (latestReflection) {
       sections.push(
@@ -494,7 +535,7 @@ export class MemoryDB {
            ORDER BY rank
            LIMIT ?`
         )
-        .all(query, opts.type, limit) as any[];
+        .all(query, opts.type, limit) as MemoryRow[];
       return rows.map((r) => this.mapMemoryRow(r));
     }
     const rows = this.db
@@ -505,12 +546,11 @@ export class MemoryDB {
          ORDER BY rank
          LIMIT ?`
       )
-      .all(query, limit) as any[];
+      .all(query, limit) as MemoryRow[];
     return rows.map((r) => this.mapMemoryRow(r));
   }
 
-  // biome-ignore lint/suspicious/noExplicitAny: raw DB rows
-  private mapMemoryRow(r: any): Memory {
+  private mapMemoryRow(r: MemoryRow): Memory {
     return {
       ...r,
       tags: JSON.parse(r.tags),

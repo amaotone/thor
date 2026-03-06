@@ -2,6 +2,7 @@ import type { z } from 'zod/v4';
 
 /** MCP tool result type */
 export interface McpToolResult {
+  [key: string]: unknown;
   content: { type: 'text'; text: string }[];
 }
 
@@ -18,6 +19,7 @@ export interface ToolDefinition {
   name: string;
   description: string;
   schema: z.ZodType;
+  // biome-ignore lint/suspicious/noExplicitAny: tool handlers are schema-validated at runtime
   handler: (args: any) => Promise<McpToolResult>;
 }
 

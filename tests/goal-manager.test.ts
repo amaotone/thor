@@ -8,7 +8,7 @@ describe('GoalManager', () => {
 
     const goal = gm.getGoal('ch-1');
     expect(goal).toBeDefined();
-    expect(goal!.description).toBe('Build a feature');
+    expect(goal?.description).toBe('Build a feature');
   });
 
   it('should return null for unknown channel', () => {
@@ -54,14 +54,14 @@ describe('GoalManager', () => {
     const gm = new GoalManager();
     gm.setGoal('ch-1', { description: 'Old goal' });
     gm.setGoal('ch-1', { description: 'New goal' });
-    expect(gm.getGoal('ch-1')!.description).toBe('New goal');
+    expect(gm.getGoal('ch-1')?.description).toBe('New goal');
   });
 
   it('should separate goals by channel', () => {
     const gm = new GoalManager();
     gm.setGoal('ch-1', { description: 'Goal 1' });
     gm.setGoal('ch-2', { description: 'Goal 2' });
-    expect(gm.getGoal('ch-1')!.description).toBe('Goal 1');
-    expect(gm.getGoal('ch-2')!.description).toBe('Goal 2');
+    expect(gm.getGoal('ch-1')?.description).toBe('Goal 1');
+    expect(gm.getGoal('ch-2')?.description).toBe('Goal 2');
   });
 });

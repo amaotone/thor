@@ -2,7 +2,36 @@ import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import type { ToolDefinition } from '../src/core/mcp/index.js';
 import { createTwitterTools } from '../src/extensions/twitter/index.js';
 
-function createMockTwitterClient() {
+type MockTwitterClient = {
+  getHomeTimeline: ReturnType<typeof mock>;
+  getUserTimeline: ReturnType<typeof mock>;
+  search: ReturnType<typeof mock>;
+  getMentions: ReturnType<typeof mock>;
+  postTweet: ReturnType<typeof mock>;
+  replyToTweet: ReturnType<typeof mock>;
+  getUsername: ReturnType<typeof mock>;
+  getUserId: ReturnType<typeof mock>;
+  getOwnTweets: ReturnType<typeof mock>;
+};
+
+type MockOutputFilter = {
+  check: ReturnType<typeof mock>;
+};
+
+type MockRateLimiter = {
+  checkInbound: ReturnType<typeof mock>;
+  checkOutbound: ReturnType<typeof mock>;
+  checkSelfPost: ReturnType<typeof mock>;
+  recordSecurityTrigger: ReturnType<typeof mock>;
+  isCircuitBroken: ReturnType<typeof mock>;
+};
+
+type MockMemoryDb = {
+  addMemory: ReturnType<typeof mock>;
+  searchMemories: ReturnType<typeof mock>;
+};
+
+function createMockTwitterClient(): MockTwitterClient {
   return {
     getHomeTimeline: mock().mockResolvedValue([]),
     getUserTimeline: mock().mockResolvedValue([]),
@@ -13,45 +42,45 @@ function createMockTwitterClient() {
     getUsername: mock().mockReturnValue('thor_bot'),
     getUserId: mock().mockReturnValue('12345'),
     getOwnTweets: mock().mockResolvedValue([]),
-  } as any;
+  };
 }
 
-function createMockOutputFilter(overrides?: { safe?: boolean; reason?: string }) {
+function createMockOutputFilter(overrides?: { safe?: boolean; reason?: string }): MockOutputFilter {
   return {
     check: mock().mockReturnValue({
       safe: overrides?.safe ?? true,
       text: 'text',
       reason: overrides?.reason,
     }),
-  } as any;
+  };
 }
 
 function createMockRateLimiter(overrides?: {
   checkSelfPost?: boolean;
   checkOutbound?: boolean;
   isCircuitBroken?: boolean;
-}) {
+}): MockRateLimiter {
   return {
     checkInbound: mock().mockReturnValue(true),
     checkOutbound: mock().mockReturnValue(overrides?.checkOutbound ?? true),
     checkSelfPost: mock().mockReturnValue(overrides?.checkSelfPost ?? true),
     recordSecurityTrigger: mock(),
     isCircuitBroken: mock().mockReturnValue(overrides?.isCircuitBroken ?? false),
-  } as any;
+  };
 }
 
-function createMockMemoryDb() {
+function createMockMemoryDb(): MockMemoryDb {
   return {
     addMemory: mock().mockReturnValue(1),
     searchMemories: mock().mockReturnValue([]),
-  } as any;
+  };
 }
 
 describe('MCP Twitter Tools', () => {
-  let twitterClient: any;
-  let outputFilter: any;
-  let rateLimiter: any;
-  let memoryDb: any;
+  let twitterClient: MockTwitterClient;
+  let outputFilter: MockOutputFilter;
+  let rateLimiter: MockRateLimiter;
+  let memoryDb: MockMemoryDb;
   let tools: Record<string, ToolDefinition>;
 
   beforeEach(() => {

@@ -66,7 +66,7 @@ describe('FileConversationStore', () => {
 
     const ctx = store.getContextForChannel('ch-1');
     expect(ctx.summary).toBeDefined();
-    expect(ctx.summary!.summary).toBe('Previous conversation summary');
+    expect(ctx.summary?.summary).toBe('Previous conversation summary');
   });
 
   it('should separate channels', () => {

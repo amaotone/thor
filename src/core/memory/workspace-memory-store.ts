@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   appendJsonl,
@@ -8,7 +8,6 @@ import {
   truncateText,
   writeJson,
 } from '../shared/file-utils.js';
-import { createLogger } from '../shared/logger.js';
 import type {
   Memory,
   MemoryInput,
@@ -20,9 +19,8 @@ import type {
   ReflectionInput,
 } from './store.js';
 
-const logger = createLogger('workspace-memory-store');
-
 type PeopleMap = Record<string, Person>;
+type JsonRecord = Record<string, unknown>;
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -31,6 +29,10 @@ function nowIso(): string {
 function parseDate(value: string): number {
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function readNullableString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
 }
 
 function compareByCreatedDesc<T extends { created_at: string; id: number }>(a: T, b: T): number {
@@ -329,23 +331,23 @@ export class WorkspaceMemoryStore implements MemoryStore {
   }
 
   private readMemories(): Memory[] {
-    return readJsonl<any>(this.memoriesPath)
+    return readJsonl<JsonRecord>(this.memoriesPath)
       .map((row) => this.normalizeMemory(row))
       .filter((memory) => memory.content.length > 0);
   }
 
-  private normalizeMemory(row: any): Memory {
+  private normalizeMemory(row: JsonRecord): Memory {
     const timestamp = row?.created_at ?? nowIso();
     return {
       id: Number(row?.id ?? 0),
       type: String(row?.type ?? 'knowledge'),
-      platform: row?.platform ?? null,
-      person_id: row?.person_id ?? null,
+      platform: readNullableString(row?.platform),
+      person_id: readNullableString(row?.person_id),
       content: String(row?.content ?? ''),
-      context: row?.context ?? null,
+      context: readNullableString(row?.context),
       importance: Number(row?.importance ?? 5),
       tags: Array.isArray(row?.tags) ? row.tags.map((tag: unknown) => String(tag)) : [],
-      source: row?.source ?? null,
+      source: readNullableString(row?.source),
       confidence: Number(row?.confidence ?? 1.0),
       created_at: String(timestamp),
       updated_at: String(row?.updated_at ?? timestamp),
@@ -353,17 +355,17 @@ export class WorkspaceMemoryStore implements MemoryStore {
   }
 
   private readReflections(): Reflection[] {
-    return readJsonl<any>(this.reflectionsPath)
+    return readJsonl<JsonRecord>(this.reflectionsPath)
       .map((row) => this.normalizeReflection(row))
       .filter((reflection) => reflection.content.length > 0);
   }
 
-  private normalizeReflection(row: any): Reflection {
+  private normalizeReflection(row: JsonRecord): Reflection {
     return {
       id: Number(row?.id ?? 0),
       type: String(row?.type ?? 'daily'),
       content: String(row?.content ?? ''),
-      sentiment: row?.sentiment ?? null,
+      sentiment: readNullableString(row?.sentiment),
       lessons_learned: Array.isArray(row?.lessons_learned)
         ? row.lessons_learned.map((lesson: unknown) => String(lesson))
         : [],

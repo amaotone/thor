@@ -1,12 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, jest, mock } from 'bun:test';
+import type { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import type { writeFileSync } from 'node:fs';
 import { RunContext } from '../src/core/mcp/context.js';
 import type { StreamCallbacks } from '../src/core/ports/agent-runner.js';
 import { CliRunner } from '../src/extensions/agent-cli/cli-runner.js';
 
+type MockChildProcess = EventEmitter & {
+  stdout: EventEmitter;
+  stderr: EventEmitter;
+  kill: ReturnType<typeof mock>;
+  pid: number;
+};
+
 /** Create a mock child process with stdout/stderr as EventEmitters */
 function createMockChild() {
-  const child = new EventEmitter() as any;
+  const child = new EventEmitter() as MockChildProcess;
   child.stdout = new EventEmitter();
   child.stderr = new EventEmitter();
   child.kill = mock();
@@ -17,7 +26,7 @@ function createMockChild() {
 describe('CliRunner', () => {
   let runner: CliRunner;
   let runContext: RunContext;
-  let mockChild: any;
+  let mockChild: MockChildProcess;
   const mockSpawn = mock();
   const mockWriteFileSync = mock();
 
@@ -35,8 +44,8 @@ describe('CliRunner', () => {
         workdir: '/workspace',
         mcpServerUrl: 'http://127.0.0.1:18765/mcp',
         deps: {
-          spawn: mockSpawn as any,
-          writeFileSync: mockWriteFileSync as any,
+          spawn: mockSpawn as unknown as typeof spawn,
+          writeFileSync: mockWriteFileSync as unknown as typeof writeFileSync,
         },
       },
       runContext
@@ -85,8 +94,8 @@ describe('CliRunner', () => {
         mcpServerUrl: 'http://127.0.0.1:18765/mcp',
         sessionStore,
         deps: {
-          spawn: mockSpawn as any,
-          writeFileSync: mockWriteFileSync as any,
+          spawn: mockSpawn as unknown as typeof spawn,
+          writeFileSync: mockWriteFileSync as unknown as typeof writeFileSync,
         },
       },
       runContext
@@ -249,8 +258,8 @@ describe('CliRunner', () => {
         mcpServerUrl: 'http://127.0.0.1:18765/mcp',
         sessionStore,
         deps: {
-          spawn: mockSpawn as any,
-          writeFileSync: mockWriteFileSync as any,
+          spawn: mockSpawn as unknown as typeof spawn,
+          writeFileSync: mockWriteFileSync as unknown as typeof writeFileSync,
         },
       },
       runContext
@@ -349,8 +358,8 @@ describe('CliRunner', () => {
         mcpServerUrl: 'http://127.0.0.1:18765/mcp',
         sessionStore,
         deps: {
-          spawn: mockSpawn as any,
-          writeFileSync: mockWriteFileSync as any,
+          spawn: mockSpawn as unknown as typeof spawn,
+          writeFileSync: mockWriteFileSync as unknown as typeof writeFileSync,
         },
       },
       runContext

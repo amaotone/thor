@@ -26,7 +26,7 @@ describe('FileGoalManager', () => {
 
     const goal = gm.getGoal('ch-1');
     expect(goal).toBeDefined();
-    expect(goal!.description).toBe('Build a feature');
+    expect(goal?.description).toBe('Build a feature');
   });
 
   it('should return null for unknown channel', () => {
@@ -66,14 +66,14 @@ describe('FileGoalManager', () => {
   it('should overwrite existing goal', () => {
     gm.setGoal('ch-1', { description: 'Old goal' });
     gm.setGoal('ch-1', { description: 'New goal' });
-    expect(gm.getGoal('ch-1')!.description).toBe('New goal');
+    expect(gm.getGoal('ch-1')?.description).toBe('New goal');
   });
 
   it('should separate goals by channel', () => {
     gm.setGoal('ch-1', { description: 'Goal 1' });
     gm.setGoal('ch-2', { description: 'Goal 2' });
-    expect(gm.getGoal('ch-1')!.description).toBe('Goal 1');
-    expect(gm.getGoal('ch-2')!.description).toBe('Goal 2');
+    expect(gm.getGoal('ch-1')?.description).toBe('Goal 1');
+    expect(gm.getGoal('ch-2')?.description).toBe('Goal 2');
   });
 
   it('should persist goals across instances', () => {
@@ -81,6 +81,6 @@ describe('FileGoalManager', () => {
 
     // Create a new instance pointing to the same directory
     const gm2 = new FileGoalManager(contextDir);
-    expect(gm2.getGoal('ch-1')!.description).toBe('Persistent goal');
+    expect(gm2.getGoal('ch-1')?.description).toBe('Persistent goal');
   });
 });

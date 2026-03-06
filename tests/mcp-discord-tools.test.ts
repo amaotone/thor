@@ -2,12 +2,38 @@ import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { RunContext, type ToolDefinition } from '../src/core/mcp/index.js';
 import { createDiscordTools, type DiscordToolsDeps } from '../src/extensions/discord/index.js';
 
+type MockClient = {
+  channels: {
+    fetch: ReturnType<typeof mock>;
+  };
+  guilds: {
+    cache: {
+      get: ReturnType<typeof mock>;
+    };
+  };
+  user: { id: string };
+};
+
+type FilterableChannel = { type: number; name: string; id: string };
+type HistoryMessage = {
+  id: string;
+  author: { tag: string };
+  content: string;
+  createdAt: Date;
+  attachments: {
+    size: number;
+    map: (fn: (attachment: { name?: string; url: string }) => string) => string[];
+  };
+};
+type ChannelFilter = (channel: FilterableChannel) => boolean;
+
 const discordToolsDeps: DiscordToolsDeps = {
-  isSendableChannel: ((ch: any) => ch && typeof ch.send === 'function') as any,
+  isSendableChannel: (ch): ch is { send: (payload: unknown) => Promise<unknown> } =>
+    typeof ch === 'object' && ch !== null && 'send' in ch && typeof ch.send === 'function',
   channelTypeGuildText: 0,
 };
 
-function createMockClient(overrides: any = {}) {
+function createMockClient(overrides: Partial<MockClient> = {}): MockClient {
   return {
     channels: {
       fetch: mock(),
@@ -19,7 +45,7 @@ function createMockClient(overrides: any = {}) {
     },
     user: { id: 'bot-user-id' },
     ...overrides,
-  } as any;
+  };
 }
 
 function createSendableChannel(guildId?: string) {
@@ -32,7 +58,7 @@ function createSendableChannel(guildId?: string) {
 }
 
 describe('MCP Discord Tools', () => {
-  let client: any;
+  let client: MockClient;
   let runContext: RunContext;
   let tools: Record<string, ToolDefinition>;
 
@@ -111,13 +137,13 @@ describe('MCP Discord Tools', () => {
       client.guilds.cache.get.mockReturnValue({
         channels: {
           cache: {
-            filter: (fn: any) => {
-              const filtered = new Map();
+            filter: (fn: ChannelFilter) => {
+              const filtered = new Map<string, FilterableChannel>();
               for (const [k, v] of channels) {
                 if (fn(v)) filtered.set(k, v);
               }
               return {
-                map: (mapFn: any) => {
+                map: (mapFn: (channel: FilterableChannel) => string) => {
                   const results: string[] = [];
                   for (const v of filtered.values()) results.push(mapFn(v));
                   return { join: (sep: string) => results.join(sep) };
@@ -165,7 +191,7 @@ describe('MCP Discord Tools', () => {
           fetch: mock().mockResolvedValue({
             size: 1,
             reverse: () => ({
-              map: (fn: any) => {
+              map: (fn: (message: HistoryMessage) => string) => {
                 const results: string[] = [];
                 for (const v of messages.values()) results.push(fn(v));
                 return { join: (sep: string) => results.join(sep) };

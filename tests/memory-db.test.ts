@@ -23,9 +23,9 @@ describe('MemoryDB', () => {
 
       const person = db.getPerson('twitter:123');
       expect(person).toBeDefined();
-      expect(person!.username).toBe('testuser');
-      expect(person!.display_name).toBe('Test User');
-      expect(person!.interaction_count).toBe(0);
+      expect(person?.username).toBe('testuser');
+      expect(person?.display_name).toBe('Test User');
+      expect(person?.interaction_count).toBe(0);
     });
 
     it('should increment interaction count on upsert', () => {
@@ -41,7 +41,7 @@ describe('MemoryDB', () => {
       });
 
       const person = db.getPerson('discord:456');
-      expect(person!.interaction_count).toBe(1);
+      expect(person?.interaction_count).toBe(1);
     });
 
     it('should update person summary and tags', () => {
@@ -56,8 +56,8 @@ describe('MemoryDB', () => {
       });
 
       const person = db.getPerson('twitter:123');
-      expect(person!.summary).toBe('Friendly developer');
-      expect(person!.tags).toEqual(['developer', 'friendly']);
+      expect(person?.summary).toBe('Friendly developer');
+      expect(person?.tags).toEqual(['developer', 'friendly']);
     });
 
     it('should return null for unknown person', () => {
@@ -90,9 +90,9 @@ describe('MemoryDB', () => {
       expect(id).toBeGreaterThan(0);
       const mem = db.getMemory(id);
       expect(mem).toBeDefined();
-      expect(mem!.content).toBe('Had a great chat about TypeScript');
-      expect(mem!.importance).toBe(7);
-      expect(mem!.tags).toEqual(['typescript', 'chat']);
+      expect(mem?.content).toBe('Had a great chat about TypeScript');
+      expect(mem?.importance).toBe(7);
+      expect(mem?.tags).toEqual(['typescript', 'chat']);
     });
 
     it('should add memory linked to a person', () => {
@@ -105,7 +105,7 @@ describe('MemoryDB', () => {
       });
 
       const mem = db.getMemory(id);
-      expect(mem!.person_id).toBe('twitter:123');
+      expect(mem?.person_id).toBe('twitter:123');
     });
 
     it('should search memories with FTS5', () => {
@@ -142,7 +142,7 @@ describe('MemoryDB', () => {
 
     it('should default importance to 5', () => {
       const id = db.addMemory({ type: 'knowledge', content: 'test' });
-      expect(db.getMemory(id)!.importance).toBe(5);
+      expect(db.getMemory(id)?.importance).toBe(5);
     });
   });
 
@@ -157,9 +157,9 @@ describe('MemoryDB', () => {
 
       expect(id).toBeGreaterThan(0);
       const ref = db.getReflection(id);
-      expect(ref!.content).toContain('learned about many new things');
-      expect(ref!.sentiment).toBe('positive');
-      expect(ref!.lessons_learned).toEqual(['Humans are kind', 'TypeScript is fun']);
+      expect(ref?.content).toContain('learned about many new things');
+      expect(ref?.sentiment).toBe('positive');
+      expect(ref?.lessons_learned).toEqual(['Humans are kind', 'TypeScript is fun']);
     });
 
     it('should list recent reflections', () => {
@@ -263,16 +263,16 @@ describe('MemoryDB', () => {
       db.upsertSummary('ch-1', 'Summary of conversation', 10, 20);
       const summary = db.getSummary('ch-1');
       expect(summary).toBeDefined();
-      expect(summary!.summary).toBe('Summary of conversation');
-      expect(summary!.turn_count).toBe(10);
-      expect(summary!.last_turn_id).toBe(20);
+      expect(summary?.summary).toBe('Summary of conversation');
+      expect(summary?.turn_count).toBe(10);
+      expect(summary?.last_turn_id).toBe(20);
     });
 
     it('should return latest summary', () => {
       db.upsertSummary('ch-1', 'Old summary', 5, 10);
       db.upsertSummary('ch-1', 'New summary', 15, 30);
       const summary = db.getSummary('ch-1');
-      expect(summary!.summary).toBe('New summary');
+      expect(summary?.summary).toBe('New summary');
     });
 
     it('should return null for unknown channel', () => {

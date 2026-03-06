@@ -2,7 +2,14 @@ import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { RunContext, type ToolDefinition } from '../src/core/mcp/index.js';
 import { createScheduleTools } from '../src/extensions/scheduler/index.js';
 
-function createMockScheduler() {
+type MockScheduler = {
+  add: ReturnType<typeof mock>;
+  list: ReturnType<typeof mock>;
+  remove: ReturnType<typeof mock>;
+  toggle: ReturnType<typeof mock>;
+};
+
+function createMockScheduler(): MockScheduler {
   return {
     add: mock().mockReturnValue({
       id: 'sch-1',
@@ -14,11 +21,11 @@ function createMockScheduler() {
     list: mock().mockReturnValue([]),
     remove: mock(),
     toggle: mock(),
-  } as any;
+  };
 }
 
 describe('MCP Schedule Tools', () => {
-  let scheduler: any;
+  let scheduler: MockScheduler;
   let runContext: RunContext;
   let tools: Record<string, ToolDefinition>;
 

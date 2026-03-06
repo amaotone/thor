@@ -28,7 +28,7 @@ export async function startHttpMcpServer(
       mcp.registerTool(
         tool.name,
         { description: tool.description, inputSchema: tool.schema },
-        async (args) => tool.handler(args) as any
+        async (args) => tool.handler(args)
       );
     }
     return mcp;
@@ -77,10 +77,15 @@ export async function startHttpMcpServer(
           res.end();
         }
       } else if (req.method === 'DELETE') {
-        if (sessionId && transports.has(sessionId)) {
-          const transport = transports.get(sessionId)!;
-          transports.delete(sessionId);
-          await transport.handleRequest(req, res);
+        if (sessionId) {
+          const transport = transports.get(sessionId);
+          if (transport) {
+            transports.delete(sessionId);
+            await transport.handleRequest(req, res);
+          } else {
+            res.writeHead(400);
+            res.end();
+          }
         } else {
           res.writeHead(400);
           res.end();

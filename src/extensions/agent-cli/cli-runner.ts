@@ -19,6 +19,29 @@ import { buildCliSystemPrompt } from './system-prompt.js';
 
 const logger = createLogger('cli-runner');
 
+interface CliToolUseBlock {
+  type?: string;
+  name?: string;
+  input?: unknown;
+}
+
+interface CliMessage {
+  type?: string;
+  subtype?: string;
+  result?: string;
+  errors?: unknown;
+  message?: {
+    content?: unknown;
+  };
+  event?: {
+    type?: string;
+    delta?: {
+      type?: string;
+      text?: string;
+    };
+  };
+}
+
 export interface CliRunnerOptions {
   model?: string;
   timeoutMs?: number;
@@ -179,7 +202,16 @@ export class CliRunner implements AgentRunner {
 
       // Parse NDJSON from stdout using manual line buffering
       let stdoutBuffer = '';
-      child.stdout!.on('data', (chunk: Buffer) => {
+      const stdout = child.stdout;
+      if (!stdout) {
+        clearTimeout(timeout);
+        this.childProcess = null;
+        this.runContext.clear();
+        reject(new Error('CLI stdout pipe unavailable'));
+        return;
+      }
+
+      stdout.on('data', (chunk: Buffer) => {
         stdoutBuffer += chunk.toString();
         const lines = stdoutBuffer.split('\n');
         // Keep the last incomplete line in the buffer
@@ -193,7 +225,7 @@ export class CliRunner implements AgentRunner {
           }
 
           try {
-            const message = JSON.parse(line);
+            const message = JSON.parse(line) as CliMessage;
             const sessionIdFromMessage = this.extractSessionId(message);
             if (sessionIdFromMessage) {
               sessionId = sessionIdFromMessage;
@@ -294,14 +326,19 @@ export class CliRunner implements AgentRunner {
   /**
    * Process a single NDJSON message from CLI stdout.
    */
-  private processMessage(message: any, callbacks: StreamCallbacks, fullText: string): string {
+  private processMessage(
+    message: CliMessage,
+    callbacks: StreamCallbacks,
+    fullText: string
+  ): string {
     // assistant — extract tool_use blocks only (text comes via stream_event)
     if (message.type === 'assistant' && message.message?.content) {
       const content = message.message.content;
       if (Array.isArray(content)) {
         for (const block of content) {
-          if (block.type === 'tool_use' && block.name) {
-            callbacks.onProgress?.(block.name, block.input);
+          const toolUseBlock = block as CliToolUseBlock;
+          if (toolUseBlock.type === 'tool_use' && toolUseBlock.name) {
+            callbacks.onProgress?.(toolUseBlock.name, toolUseBlock.input);
           }
         }
       }
@@ -329,7 +366,7 @@ export class CliRunner implements AgentRunner {
     return fullText;
   }
 
-  private extractResultErrorMessage(message: any): string | undefined {
+  private extractResultErrorMessage(message: CliMessage): string | undefined {
     if (message.type !== 'result' || message.subtype === 'success') {
       return undefined;
     }

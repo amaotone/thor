@@ -6,6 +6,13 @@ import { type HttpMcpServer, startHttpMcpServer } from '../src/runtime/mcp-serve
 
 let server: HttpMcpServer | null = null;
 
+interface SsePayload {
+  result?: {
+    content?: { text: string }[];
+    tools?: { name: string }[];
+  };
+}
+
 afterEach(async () => {
   if (server) {
     await server.close();
@@ -14,7 +21,7 @@ afterEach(async () => {
 });
 
 /** Parse SSE response to extract JSON-RPC result */
-async function parseSseResponse(res: Response): Promise<any> {
+async function parseSseResponse(res: Response): Promise<SsePayload> {
   const text = await res.text();
   const dataLine = text.split('\n').find((l) => l.startsWith('data: '));
   if (!dataLine) throw new Error(`No data line in SSE response: ${text}`);
@@ -51,11 +58,15 @@ async function initSession(url: string): Promise<string> {
   // Send initialized notification
   await fetch(url, {
     method: 'POST',
-    headers: { ...MCP_HEADERS, 'mcp-session-id': sessionId! },
+    headers: { ...MCP_HEADERS, 'mcp-session-id': sessionId },
     body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
   });
 
-  return sessionId!;
+  if (!sessionId) {
+    throw new Error('Expected MCP session ID');
+  }
+
+  return sessionId;
 }
 
 describe('HTTP MCP Server', () => {
@@ -119,7 +130,7 @@ describe('HTTP MCP Server', () => {
     });
     expect(listRes.ok).toBe(true);
     const body = await parseSseResponse(listRes);
-    const toolNames = body.result.tools.map((t: any) => t.name);
+    const toolNames = (body.result?.tools ?? []).map((t) => t.name);
     expect(toolNames).toContain('tool_a');
     expect(toolNames).toContain('tool_b');
   });

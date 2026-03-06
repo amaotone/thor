@@ -124,9 +124,7 @@ export function createTwitterTools(
         if (memoryDb) {
           try {
             const similar = memoryDb.searchMemories(args.text.substring(0, 50));
-            const auditMatches = similar.filter(
-              (m: any) => Array.isArray(m.tags) && m.tags.includes('audit')
-            );
+            const auditMatches = similar.filter((m) => m.tags.includes('audit'));
             if (auditMatches.length > 0) {
               duplicateWarning = 'Warning: Similar tweet found in recent history. ';
             }

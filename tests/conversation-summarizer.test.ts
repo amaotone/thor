@@ -1,11 +1,18 @@
 import { describe, expect, it, mock } from 'bun:test';
+import type { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { ConversationSummarizer } from '../src/core/context/conversation-summarizer.js';
 import type { ConversationTurn } from '../src/core/memory/memory-db.js';
 
+type MockChildProcess = EventEmitter & {
+  stdout: EventEmitter;
+  stderr: EventEmitter;
+  kill: ReturnType<typeof mock>;
+};
+
 function createMockSpawn(output = '### Decisions\n- Decided to use TypeScript', exitCode = 0) {
   const mockFn = mock().mockImplementation(() => {
-    const child = new EventEmitter() as any;
+    const child = new EventEmitter() as MockChildProcess;
     child.stdout = new EventEmitter();
     child.stderr = new EventEmitter();
     child.kill = mock();
@@ -20,7 +27,7 @@ function createMockSpawn(output = '### Decisions\n- Decided to use TypeScript', 
 
 function createFailingSpawn(errorMsg = 'CLI error') {
   return mock().mockImplementation(() => {
-    const child = new EventEmitter() as any;
+    const child = new EventEmitter() as MockChildProcess;
     child.stdout = new EventEmitter();
     child.stderr = new EventEmitter();
     child.kill = mock();
@@ -45,7 +52,9 @@ function makeTurns(count: number): ConversationTurn[] {
 describe('ConversationSummarizer', () => {
   it('should summarize conversation turns via claude -p', async () => {
     const mockSpawn = createMockSpawn();
-    const summarizer = new ConversationSummarizer({ deps: { spawn: mockSpawn as any } });
+    const summarizer = new ConversationSummarizer({
+      deps: { spawn: mockSpawn as unknown as typeof spawn },
+    });
 
     const result = await summarizer.summarize(makeTurns(4));
     expect(result).toContain('Decisions');
@@ -54,7 +63,9 @@ describe('ConversationSummarizer', () => {
 
   it('should return empty string for empty turns', async () => {
     const mockSpawn = createMockSpawn();
-    const summarizer = new ConversationSummarizer({ deps: { spawn: mockSpawn as any } });
+    const summarizer = new ConversationSummarizer({
+      deps: { spawn: mockSpawn as unknown as typeof spawn },
+    });
 
     const result = await summarizer.summarize([]);
     expect(result).toBe('');
@@ -63,7 +74,9 @@ describe('ConversationSummarizer', () => {
 
   it('should handle CLI errors gracefully', async () => {
     const mockSpawn = createFailingSpawn();
-    const summarizer = new ConversationSummarizer({ deps: { spawn: mockSpawn as any } });
+    const summarizer = new ConversationSummarizer({
+      deps: { spawn: mockSpawn as unknown as typeof spawn },
+    });
 
     const result = await summarizer.summarize(makeTurns(2));
     expect(result).toBe('');
@@ -73,7 +86,7 @@ describe('ConversationSummarizer', () => {
     const mockSpawn = createMockSpawn();
     const summarizer = new ConversationSummarizer({
       model: 'haiku',
-      deps: { spawn: mockSpawn as any },
+      deps: { spawn: mockSpawn as unknown as typeof spawn },
     });
 
     await summarizer.summarize(makeTurns(2));
@@ -84,7 +97,9 @@ describe('ConversationSummarizer', () => {
 
   it('should spawn claude with -p and --output-format text', async () => {
     const mockSpawn = createMockSpawn();
-    const summarizer = new ConversationSummarizer({ deps: { spawn: mockSpawn as any } });
+    const summarizer = new ConversationSummarizer({
+      deps: { spawn: mockSpawn as unknown as typeof spawn },
+    });
 
     await summarizer.summarize(makeTurns(2));
     expect(mockSpawn.mock.calls[0][0]).toBe('claude');
@@ -96,7 +111,9 @@ describe('ConversationSummarizer', () => {
 
   it('should include turn content in the prompt', async () => {
     const mockSpawn = createMockSpawn();
-    const summarizer = new ConversationSummarizer({ deps: { spawn: mockSpawn as any } });
+    const summarizer = new ConversationSummarizer({
+      deps: { spawn: mockSpawn as unknown as typeof spawn },
+    });
     const turns: ConversationTurn[] = [
       { id: 1, channel_id: 'ch-1', role: 'user', content: 'Hello', created_at: '' },
       { id: 2, channel_id: 'ch-1', role: 'assistant', content: 'Hi!', created_at: '' },

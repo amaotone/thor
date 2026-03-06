@@ -105,7 +105,7 @@ describe('MCP Memory Tools', () => {
 
       expect(result.content[0].text).toContain('Updated');
       const person = db.getPerson('twitter:123');
-      expect(person!.summary).toBe('Friendly developer');
+      expect(person?.summary).toBe('Friendly developer');
     });
 
     it('should list people', async () => {

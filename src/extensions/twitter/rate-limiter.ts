@@ -24,7 +24,10 @@ export class RateLimiter {
       this.inboundCounts.set(userId, []);
     }
 
-    const timestamps = this.inboundCounts.get(userId)!;
+    const timestamps = this.inboundCounts.get(userId);
+    if (!timestamps) {
+      return false;
+    }
     // Prune old entries
     const recent = timestamps.filter((t) => t > hourAgo);
     this.inboundCounts.set(userId, recent);

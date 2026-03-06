@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import type { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { ContextBuilder } from '../src/core/context/context-builder.js';
 import { ConversationStore } from '../src/core/context/conversation-store.js';
@@ -6,9 +7,15 @@ import { ConversationSummarizer } from '../src/core/context/conversation-summari
 import { GoalManager } from '../src/core/context/goal-manager.js';
 import { MemoryDB } from '../src/core/memory/memory-db.js';
 
+type MockChildProcess = EventEmitter & {
+  stdout: EventEmitter;
+  stderr: EventEmitter;
+  kill: ReturnType<typeof mock>;
+};
+
 function createMockSpawn(output = '### Decisions\n- Test decision') {
   return mock().mockImplementation(() => {
-    const child = new EventEmitter() as any;
+    const child = new EventEmitter() as MockChildProcess;
     child.stdout = new EventEmitter();
     child.stderr = new EventEmitter();
     child.kill = mock();
@@ -31,7 +38,9 @@ describe('ContextBuilder', () => {
     db = new MemoryDB(':memory:');
     store = new ConversationStore(db, { rawTurnLimit: 5, summaryThreshold: 5 });
     goalManager = new GoalManager();
-    summarizer = new ConversationSummarizer({ deps: { spawn: createMockSpawn() as any } });
+    summarizer = new ConversationSummarizer({
+      deps: { spawn: createMockSpawn() as unknown as typeof spawn },
+    });
     builder = new ContextBuilder(store, goalManager, summarizer, db);
   });
 

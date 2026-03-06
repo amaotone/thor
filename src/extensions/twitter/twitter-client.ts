@@ -96,7 +96,7 @@ export class TwitterClient {
   }
 
   async getMentions(sinceId?: string): Promise<Tweet[]> {
-    const options: any = {
+    const options: NonNullable<Parameters<TwitterApi['v2']['userMentionTimeline']>[1]> = {
       max_results: 20,
       'tweet.fields': ['author_id', 'created_at', 'conversation_id'],
     };
