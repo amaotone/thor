@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process';
-import type { ConversationTurn } from '../memory/memory-db.js';
 import { createLogger } from '../shared/logger.js';
+import type { ConversationTurn } from './ports.js';
 
 const logger = createLogger('summarizer');
 

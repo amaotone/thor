@@ -1,5 +1,8 @@
 import { Database } from 'bun:sqlite';
+import type { ConversationSummary, ConversationTurn } from '../context/ports.js';
 import { createLogger } from '../shared/logger.js';
+
+export type { ConversationSummary, ConversationTurn };
 
 const logger = createLogger('memory-db');
 
@@ -54,23 +57,6 @@ export interface Memory {
   confidence: number;
   created_at: string;
   updated_at: string;
-}
-
-export interface ConversationTurn {
-  id: number;
-  channel_id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  created_at: string;
-}
-
-export interface ConversationSummary {
-  id: number;
-  channel_id: string;
-  summary: string;
-  turn_count: number;
-  last_turn_id: number;
-  created_at: string;
 }
 
 export interface ReflectionInput {
@@ -285,13 +271,7 @@ export class MemoryDB {
        LIMIT ?`
       )
       .all(query, limit) as any[];
-    return rows.map((r) => ({
-      ...r,
-      tags: JSON.parse(r.tags),
-      source: r.source ?? null,
-      confidence: r.confidence ?? 1.0,
-      updated_at: r.updated_at ?? r.created_at,
-    }));
+    return rows.map((r) => this.mapMemoryRow(r));
   }
 
   listMemories(opts: { type?: string; person_id?: string; limit: number }): Memory[] {
@@ -315,13 +295,7 @@ export class MemoryDB {
     params.push(opts.limit);
 
     const rows = this.db.prepare(sql).all(...params) as any[];
-    return rows.map((r) => ({
-      ...r,
-      tags: JSON.parse(r.tags),
-      source: r.source ?? null,
-      confidence: r.confidence ?? 1.0,
-      updated_at: r.updated_at ?? r.created_at,
-    }));
+    return rows.map((r) => this.mapMemoryRow(r));
   }
 
   // --- Reflections ---
@@ -521,13 +495,7 @@ export class MemoryDB {
            LIMIT ?`
         )
         .all(query, opts.type, limit) as any[];
-      return rows.map((r) => ({
-        ...r,
-        tags: JSON.parse(r.tags),
-        source: r.source ?? null,
-        confidence: r.confidence ?? 1.0,
-        updated_at: r.updated_at ?? r.created_at,
-      }));
+      return rows.map((r) => this.mapMemoryRow(r));
     }
     const rows = this.db
       .prepare(
@@ -538,13 +506,18 @@ export class MemoryDB {
          LIMIT ?`
       )
       .all(query, limit) as any[];
-    return rows.map((r) => ({
+    return rows.map((r) => this.mapMemoryRow(r));
+  }
+
+  // biome-ignore lint/suspicious/noExplicitAny: raw DB rows
+  private mapMemoryRow(r: any): Memory {
+    return {
       ...r,
       tags: JSON.parse(r.tags),
       source: r.source ?? null,
       confidence: r.confidence ?? 1.0,
       updated_at: r.updated_at ?? r.created_at,
-    }));
+    };
   }
 
   close(): void {

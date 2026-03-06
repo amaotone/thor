@@ -1,5 +1,5 @@
-import type { ConversationTurn, MemoryDB } from '../memory/memory-db.js';
-import type { ConversationContext, ConversationStorePort } from './ports.js';
+import type { MemoryDB } from '../memory/memory-db.js';
+import type { ConversationContext, ConversationStorePort, ConversationTurn } from './ports.js';
 
 export type { ConversationContext };
 

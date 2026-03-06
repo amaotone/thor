@@ -21,6 +21,77 @@ const ALLOWED_DOWNLOAD_HOSTS = ['cdn.discordapp.com', 'media.discordapp.net'];
 /**
  * ファイルパスがディレクトリ内に収まっているか判定
  */
+/**
+ * パス構成要素をサニタイズ（英数字・ドット・ハイフン・アンダースコアのみ許可）
+ */
+export function sanitizePathSegment(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return 'unknown';
+  return trimmed.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+/**
+ * テキストを指定文字数に切り詰め
+ */
+export function truncateText(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars)}...(truncated)`;
+}
+
+/**
+ * JSON ファイルを読み込み、パース失敗時はフォールバック値を返す
+ */
+export function readJson<T>(filePath: string, fallback: T): T {
+  try {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    if (!raw.trim()) return fallback;
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * JSON ファイルに書き込む（pretty print + trailing newline）
+ */
+export function writeJson(filePath: string, value: unknown): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+/**
+ * JSONL ファイルを読み込み、各行をパースして配列で返す
+ */
+export function readJsonl<T>(filePath: string): T[] {
+  try {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    if (!raw.trim()) return [];
+    const lines = raw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const rows: T[] = [];
+    for (const line of lines) {
+      try {
+        rows.push(JSON.parse(line) as T);
+      } catch {
+        // skip malformed lines
+      }
+    }
+    return rows;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * JSONL ファイルに1行追記
+ */
+export function appendJsonl(filePath: string, value: unknown): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.appendFileSync(filePath, `${JSON.stringify(value)}\n`);
+}
+
 export function isPathWithinDir(filePath: string, dir: string): boolean {
   const resolved = path.resolve(filePath);
   const allowedDir = path.resolve(dir);
@@ -41,7 +112,7 @@ export async function downloadFile(
     throw new Error(`Download blocked: host '${parsedUrl.hostname}' is not allowed`);
   }
 
-  const sanitized = path.basename(filename).replace(/[^a-zA-Z0-9._-]/g, '_');
+  const sanitized = sanitizePathSegment(path.basename(filename));
   const filePath = path.join(DOWNLOAD_DIR, `${Date.now()}_${sanitized}`);
 
   const headers: Record<string, string> = { ...authHeader };

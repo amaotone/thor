@@ -1,4 +1,5 @@
 import type { Goal, GoalManagerPort } from './ports.js';
+import { formatGoalForContext } from './ports.js';
 
 export type { Goal };
 
@@ -18,13 +19,6 @@ export class GoalManager implements GoalManagerPort {
   }
 
   formatForContext(channelId: string): string {
-    const goal = this.goals.get(channelId);
-    if (!goal) return '';
-
-    const lines = [`## [CURRENT_GOAL]`, `**Goal:** ${goal.description}`];
-    if (goal.doneCondition) lines.push(`**Done when:** ${goal.doneCondition}`);
-    if (goal.constraints) lines.push(`**Constraints:** ${goal.constraints}`);
-    if (goal.outputFormat) lines.push(`**Output format:** ${goal.outputFormat}`);
-    return lines.join('\n');
+    return formatGoalForContext(this.goals.get(channelId) ?? null);
   }
 }

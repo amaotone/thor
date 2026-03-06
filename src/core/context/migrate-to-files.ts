@@ -1,6 +1,7 @@
-import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { MemoryDB } from '../memory/memory-db.js';
+import { appendJsonl } from '../shared/file-utils.js';
 import { createLogger } from '../shared/logger.js';
 
 const logger = createLogger('migrate');
@@ -40,7 +41,7 @@ export function migrateToFiles(memoryDb: MemoryDB, contextDir: string): void {
     const turns = memoryDb.getRecentTurns(channelId, 10000); // Get all turns
     if (turns.length > 0) {
       for (const turn of turns) {
-        appendFileSync(turnsPath, `${JSON.stringify(turn)}\n`);
+        appendJsonl(turnsPath, turn);
       }
       logger.info(`Migrated ${turns.length} turns for channel ${channelId}`);
     }

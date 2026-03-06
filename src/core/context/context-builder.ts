@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { MemoryStore } from '../memory/store.js';
+import { truncateText } from '../shared/file-utils.js';
 import { createLogger } from '../shared/logger.js';
 import type { ConversationSummarizer } from './conversation-summarizer.js';
 import type { ConversationStorePort, GoalManagerPort } from './ports.js';
@@ -48,25 +49,25 @@ export class ContextBuilder {
     // 1. [CURRENT_GOAL]
     const goalSection = this.goalManager.formatForContext(channelId);
     if (goalSection) {
-      sections.push(this.truncate(goalSection, this.budgets.goal));
+      sections.push(truncateText(goalSection, this.budgets.goal));
     }
 
     // 2. [USER_PROFILE]
     const userProfile = this.loadUserProfile();
     if (userProfile) {
-      sections.push(this.truncate(`## [USER_PROFILE]\n\n${userProfile}`, this.budgets.userProfile));
+      sections.push(truncateText(`## [USER_PROFILE]\n\n${userProfile}`, this.budgets.userProfile));
     }
 
     // 3. [RELEVANT_MEMORY]
     const memorySection = this.buildMemorySection(userMessage);
     if (memorySection) {
-      sections.push(this.truncate(memorySection, this.budgets.memories));
+      sections.push(truncateText(memorySection, this.budgets.memories));
     }
 
     // 4. [RECENT_CONTEXT]
     const recentContext = await this.buildRecentContext(channelId);
     if (recentContext) {
-      sections.push(this.truncate(recentContext, this.budgets.recentContext));
+      sections.push(truncateText(recentContext, this.budgets.recentContext));
     }
 
     // 5. Current message
@@ -257,10 +258,5 @@ export class ContextBuilder {
     // Take top keywords (deduplicated), join with OR for FTS5
     const unique = [...new Set(words)].slice(0, 10);
     return unique.join(' OR ');
-  }
-
-  private truncate(text: string, maxChars: number): string {
-    if (text.length <= maxChars) return text;
-    return `${text.slice(0, maxChars)}...(truncated)`;
   }
 }

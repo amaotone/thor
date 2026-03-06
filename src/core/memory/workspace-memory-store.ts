@@ -1,5 +1,13 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  appendJsonl,
+  readJson,
+  readJsonl,
+  sanitizePathSegment,
+  truncateText,
+  writeJson,
+} from '../shared/file-utils.js';
 import { createLogger } from '../shared/logger.js';
 import type {
   Memory,
@@ -29,12 +37,6 @@ function compareByCreatedDesc<T extends { created_at: string; id: number }>(a: T
   const dateDiff = parseDate(b.created_at) - parseDate(a.created_at);
   if (dateDiff !== 0) return dateDiff;
   return b.id - a.id;
-}
-
-function sanitizePathSegment(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed) return 'unknown';
-  return trimmed.replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
 export class WorkspaceMemoryStore implements MemoryStore {
@@ -69,7 +71,7 @@ export class WorkspaceMemoryStore implements MemoryStore {
       created_at: timestamp,
       updated_at: timestamp,
     };
-    this.appendJsonl(this.memoriesPath, memory);
+    appendJsonl(this.memoriesPath, memory);
     return id;
   }
 
@@ -183,7 +185,7 @@ export class WorkspaceMemoryStore implements MemoryStore {
       lessons_learned: input.lessons_learned ?? [],
       created_at: nowIso(),
     };
-    this.appendJsonl(this.reflectionsPath, reflection);
+    appendJsonl(this.reflectionsPath, reflection);
     return id;
   }
 
@@ -275,12 +277,8 @@ export class WorkspaceMemoryStore implements MemoryStore {
     }
 
     const charLimit = maxTokenEstimate * 4;
-    let summary = `## Memory Context\n\n${sections.join('\n\n')}`;
-    if (summary.length > charLimit) {
-      summary = `${summary.slice(0, charLimit)}...(truncated)`;
-    }
-
-    return summary;
+    const summary = `## Memory Context\n\n${sections.join('\n\n')}`;
+    return truncateText(summary, charLimit);
   }
 
   appendCompactionSummary(channelId: string, summary: string): void {
@@ -297,9 +295,6 @@ export class WorkspaceMemoryStore implements MemoryStore {
 
   private ensureLayout(): void {
     mkdirSync(this.baseDir, { recursive: true });
-    if (!existsSync(this.memoriesPath)) writeFileSync(this.memoriesPath, '');
-    if (!existsSync(this.reflectionsPath)) writeFileSync(this.reflectionsPath, '');
-    if (!existsSync(this.peoplePath)) writeFileSync(this.peoplePath, '{}');
   }
 
   private nextId(ids: number[]): number {
@@ -308,7 +303,7 @@ export class WorkspaceMemoryStore implements MemoryStore {
   }
 
   private readPeopleMap(): PeopleMap {
-    const raw = this.readJson<PeopleMap>(this.peoplePath, {});
+    const raw = readJson<PeopleMap>(this.peoplePath, {});
     const normalized: PeopleMap = {};
     const now = nowIso();
     for (const [id, person] of Object.entries(raw)) {
@@ -330,11 +325,11 @@ export class WorkspaceMemoryStore implements MemoryStore {
   }
 
   private writePeopleMap(people: PeopleMap): void {
-    this.writeJson(this.peoplePath, people);
+    writeJson(this.peoplePath, people);
   }
 
   private readMemories(): Memory[] {
-    return this.readJsonl<any>(this.memoriesPath)
+    return readJsonl<any>(this.memoriesPath)
       .map((row) => this.normalizeMemory(row))
       .filter((memory) => memory.content.length > 0);
   }
@@ -358,7 +353,7 @@ export class WorkspaceMemoryStore implements MemoryStore {
   }
 
   private readReflections(): Reflection[] {
-    return this.readJsonl<any>(this.reflectionsPath)
+    return readJsonl<any>(this.reflectionsPath)
       .map((row) => this.normalizeReflection(row))
       .filter((reflection) => reflection.content.length > 0);
   }
@@ -395,45 +390,5 @@ export class WorkspaceMemoryStore implements MemoryStore {
     }
 
     return score;
-  }
-
-  private readJson<T>(path: string, fallback: T): T {
-    try {
-      if (!existsSync(path)) return fallback;
-      const raw = readFileSync(path, 'utf-8');
-      if (!raw.trim()) return fallback;
-      return JSON.parse(raw) as T;
-    } catch (err) {
-      logger.warn(`Failed to parse JSON file: ${path}`, err);
-      return fallback;
-    }
-  }
-
-  private writeJson(path: string, value: unknown): void {
-    writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
-  }
-
-  private readJsonl<T>(path: string): T[] {
-    if (!existsSync(path)) return [];
-
-    const lines = readFileSync(path, 'utf-8')
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    const rows: T[] = [];
-    for (const line of lines) {
-      try {
-        rows.push(JSON.parse(line) as T);
-      } catch {
-        logger.warn(`Skipping malformed JSONL line from ${path}`);
-      }
-    }
-    return rows;
-  }
-
-  private appendJsonl(path: string, value: unknown): void {
-    mkdirSync(dirname(path), { recursive: true });
-    appendFileSync(path, `${JSON.stringify(value)}\n`);
   }
 }

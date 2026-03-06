@@ -57,6 +57,4 @@ export function buildCliSystemPrompt(workdir?: string): string {
   return SOUL_BASE_PROMPT + loadSoulMd(workdir) + loadContentPolicy(workdir);
 }
 
-export function buildSdkSystemPrompt(workdir?: string): string {
-  return SOUL_BASE_PROMPT + loadSoulMd(workdir) + loadContentPolicy(workdir);
-}
+export const buildSdkSystemPrompt = buildCliSystemPrompt;

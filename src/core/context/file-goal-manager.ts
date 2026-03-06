@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Goal, GoalManagerPort } from './ports.js';
+import { formatGoalForContext } from './ports.js';
 
 /**
  * File-based goal manager — persists goals as JSON files.
@@ -17,31 +18,26 @@ export class FileGoalManager implements GoalManagerPort {
   }
 
   getGoal(channelId: string): Goal | null {
-    const path = join(this.channelDir(channelId), 'goal.json');
-    if (!existsSync(path)) return null;
     try {
-      return JSON.parse(readFileSync(path, 'utf-8')) as Goal;
+      return JSON.parse(
+        readFileSync(join(this.channelDir(channelId), 'goal.json'), 'utf-8')
+      ) as Goal;
     } catch {
       return null;
     }
   }
 
   clearGoal(channelId: string): boolean {
-    const path = join(this.channelDir(channelId), 'goal.json');
-    if (!existsSync(path)) return false;
-    rmSync(path);
-    return true;
+    try {
+      rmSync(join(this.channelDir(channelId), 'goal.json'));
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   formatForContext(channelId: string): string {
-    const goal = this.getGoal(channelId);
-    if (!goal) return '';
-
-    const lines = [`## [CURRENT_GOAL]`, `**Goal:** ${goal.description}`];
-    if (goal.doneCondition) lines.push(`**Done when:** ${goal.doneCondition}`);
-    if (goal.constraints) lines.push(`**Constraints:** ${goal.constraints}`);
-    if (goal.outputFormat) lines.push(`**Output format:** ${goal.outputFormat}`);
-    return lines.join('\n');
+    return formatGoalForContext(this.getGoal(channelId));
   }
 
   private channelDir(channelId: string): string {

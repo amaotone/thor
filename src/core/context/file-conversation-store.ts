@@ -1,7 +1,12 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ConversationSummary, ConversationTurn } from '../memory/memory-db.js';
-import type { ConversationContext, ConversationStorePort } from './ports.js';
+import { appendJsonl, readJsonl } from '../shared/file-utils.js';
+import type {
+  ConversationContext,
+  ConversationStorePort,
+  ConversationSummary,
+  ConversationTurn,
+} from './ports.js';
 
 interface SummaryMeta {
   lastTurnId: number;
@@ -83,7 +88,7 @@ export class FileConversationStore implements ConversationStorePort {
       content,
       created_at: new Date().toISOString(),
     };
-    appendFileSync(join(dir, 'turns.jsonl'), `${JSON.stringify(turn)}\n`);
+    appendJsonl(join(dir, 'turns.jsonl'), turn);
     return id;
   }
 
@@ -102,26 +107,19 @@ export class FileConversationStore implements ConversationStorePort {
   }
 
   private readAllTurns(channelId: string): ConversationTurn[] {
-    const path = join(this.channelDir(channelId), 'turns.jsonl');
-    if (!existsSync(path)) return [];
-
-    const lines = readFileSync(path, 'utf-8').split('\n').filter(Boolean);
-    const turns: ConversationTurn[] = [];
-    for (const line of lines) {
-      try {
-        turns.push(JSON.parse(line) as ConversationTurn);
-      } catch {
-        // skip malformed lines
-      }
-    }
-    return turns;
+    return readJsonl<ConversationTurn>(join(this.channelDir(channelId), 'turns.jsonl'));
   }
 
   private loadSummary(channelId: string): ConversationSummary | null {
-    const path = join(this.channelDir(channelId), 'summary.md');
-    if (!existsSync(path)) return null;
+    const filePath = join(this.channelDir(channelId), 'summary.md');
 
-    const raw = readFileSync(path, 'utf-8');
+    let raw: string;
+    try {
+      raw = readFileSync(filePath, 'utf-8');
+    } catch {
+      return null;
+    }
+
     const metaMatch = raw.match(/^<!--meta:(.*?)-->\n?/);
     if (!metaMatch) return null;
 
@@ -129,12 +127,12 @@ export class FileConversationStore implements ConversationStorePort {
       const meta = JSON.parse(metaMatch[1]) as SummaryMeta;
       const summaryText = raw.slice(metaMatch[0].length);
       return {
-        id: 0, // Not meaningful for file-based store
+        id: 0,
         channel_id: channelId,
         summary: summaryText,
         turn_count: meta.turnCount,
         last_turn_id: meta.lastTurnId,
-        created_at: '', // Not tracked for file-based store
+        created_at: '',
       };
     } catch {
       return null;
